@@ -48,7 +48,10 @@ def validate_network(config_path: str | Path) -> ValidationWorkflowResult:
     report = validate_pipe_layer(pipes, options)
 
     snap_tolerance_m = _snap_tolerance_m(config)
-    pipes_clean, cleaning_report = normalize_pipe_topology(pipes, tolerance_m=snap_tolerance_m)
+    pipes_clean_auto, cleaning_report = normalize_pipe_topology(
+        pipes,
+        tolerance_m=snap_tolerance_m,
+    )
 
     report_paths = write_validation_report(report, outdir=outdir, name=name)
     combined_path = write_combined_pipe_layer(pipes, outdir=outdir, name=name)
@@ -56,7 +59,7 @@ def validate_network(config_path: str | Path) -> ValidationWorkflowResult:
         pipes,
         outdir=outdir,
         name=name,
-        pipes_clean=pipes_clean,
+        pipes_clean_auto=pipes_clean_auto,
     )
 
     return ValidationWorkflowResult(
