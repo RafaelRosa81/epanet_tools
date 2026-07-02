@@ -42,6 +42,8 @@ def test_validate_network_workflow_reads_vector_layer_and_writes_reports(tmp_pat
     assert result.report_paths["csv"].exists()
     assert result.gis_paths["combined_pipes"].exists()
     assert result.gis_paths["working_geopackage"].exists()
+    assert result.connectivity_report.pipe_count == 1
+    assert result.connectivity_report.junction_count == 2
 
     payload = json.loads(result.report_paths["json"].read_text(encoding="utf-8"))
     assert payload["feature_count"] == 1
@@ -92,12 +94,17 @@ def test_validate_network_workflow_combines_multiple_pipe_layers(tmp_path) -> No
         layer="pipes_clean_auto",
     )
     pipes_clean = gpd.read_file(result.gis_paths["working_geopackage"], layer="pipes_clean")
+    junctions = gpd.read_file(result.gis_paths["working_geopackage"], layer="junctions")
     assert len(pipes_raw) == 2
     assert len(pipes_clean_auto) == 2
     assert len(pipes_clean) == 2
+    assert len(junctions) == 4
     assert pipes_raw["_source_order"].tolist() == [1, 2]
     assert pipes_clean_auto["_source_order"].tolist() == [1, 2]
     assert pipes_clean["_source_order"].tolist() == [1, 2]
+    assert {"pipe_id", "from_node", "to_node", "length_m"}.issubset(pipes_clean.columns)
+    assert "node_id" in junctions.columns
     assert pipes_raw.crs == "EPSG:32721"
     assert pipes_clean_auto.crs == "EPSG:32721"
     assert pipes_clean.crs == "EPSG:32721"
+    assert junctions.crs == "EPSG:32721"
