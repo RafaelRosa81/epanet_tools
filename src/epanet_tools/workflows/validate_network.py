@@ -9,6 +9,7 @@ from typing import Any
 
 from epanet_tools.config import load_yaml_config, require_mapping
 from epanet_tools.hydraulic.attributes import HydraulicAttributeReport, apply_hydraulic_attributes
+from epanet_tools.hydraulic.demands import DemandAssignmentReport, apply_node_demands
 from epanet_tools.hydraulic.validation import BasicModelValidationReport, validate_basic_epanet_model
 from epanet_tools.io.gis_outputs import write_combined_pipe_layer, write_working_geopackage
 from epanet_tools.io.inp import write_basic_inp
@@ -18,6 +19,12 @@ from epanet_tools.io.reports import (
     write_validation_report,
 )
 from epanet_tools.io.vector import read_pipe_layers
+from epanet_tools.model.nodes import (
+    build_nodes_from_junctions,
+    junctions_from_nodes,
+    reservoirs_from_nodes,
+    tanks_from_nodes,
+)
 from epanet_tools.terrain.elevation import ElevationSamplingReport, sample_junction_elevations
 from epanet_tools.topology.cleaning import CleaningReport, normalize_pipe_topology
 from epanet_tools.topology.connectivity import ConnectivityReport, build_junctions_and_connectivity
@@ -40,6 +47,7 @@ class ValidationWorkflowResult:
     connectivity_report: ConnectivityReport
     elevation_report: ElevationSamplingReport
     hydraulic_report: HydraulicAttributeReport
+    demand_report: DemandAssignmentReport
     basic_model_report: BasicModelValidationReport
     topology_review_report: TopologyReviewReport
 
@@ -64,22 +72,24 @@ def validate_network(config_path: str | Path) -> ValidationWorkflowResult:
     report = validate_pipe_layer(pipes, options)
 
     snap_tolerance_m = _snap_tolerance_m(config)
-    pipes_clean_auto, cleaning_report = normalize_pipe_topology(
-        pipes,
-        tolerance_m=snap_tolerance_m,
-    )
-    pipes_clean, junctions, connectivity_report = build_junctions_and_connectivity(
-        pipes_clean_auto
-    )
+    pipes_clean_auto, cleaning_report = normalize_pipe_topology(pipes, tolerance_m=snap_tolerance_m)
+    pipes_clean, generated_junctions, connectivity_report = build_junctions_and_connectivity(pipes_clean_auto)
     pipes_clean, hydraulic_report = apply_hydraulic_attributes(
         pipes_clean,
         hydraulics_config=_mapping(config, "hydraulics"),
     )
-    junctions, elevation_report = sample_junction_elevations(
-        junctions,
+    generated_junctions, elevation_report = sample_junction_elevations(
+        generated_junctions,
         dem_path=inputs.get("dem"),
         dem_crs_override=inputs.get("dem_crs"),
     )
+
+    nodes = build_nodes_from_junctions(generated_junctions, node_config=_mapping(config, "nodes"))
+    nodes, demand_report = apply_node_demands(nodes, demands_config=_mapping(config, "demands"))
+    junctions = junctions_from_nodes(nodes)
+    reservoirs = reservoirs_from_nodes(nodes)
+    tanks = tanks_from_nodes(nodes)
+
     topology_errors, topology_report, topology_review_report = review_normalized_topology(
         pipes_clean,
         junctions,
@@ -92,12 +102,8 @@ def validate_network(config_path: str | Path) -> ValidationWorkflowResult:
     report_paths["connectivity_csv"] = write_summary_report(connectivity_report, outdir, name, "connectivity")
     report_paths["elevation_csv"] = write_summary_report(elevation_report, outdir, name, "elevation")
     report_paths["hydraulics_csv"] = write_summary_report(hydraulic_report, outdir, name, "hydraulics")
-    report_paths["topology_review_csv"] = write_summary_report(
-        topology_review_report,
-        outdir,
-        name,
-        "topology_review",
-    )
+    report_paths["demands_csv"] = write_summary_report(demand_report, outdir, name, "demands")
+    report_paths["topology_review_csv"] = write_summary_report(topology_review_report, outdir, name, "topology_review")
     report_paths["basic_model_validation_csv"] = write_basic_model_validation_report(
         basic_model_report,
         outdir=outdir,
@@ -110,7 +116,10 @@ def validate_network(config_path: str | Path) -> ValidationWorkflowResult:
         name=name,
         pipes_clean_auto=pipes_clean_auto,
         pipes_clean=pipes_clean,
+        nodes=nodes,
         junctions=junctions,
+        reservoirs=reservoirs,
+        tanks=tanks,
         topology_errors=topology_errors,
         topology_report=topology_report,
     )
@@ -129,15 +138,13 @@ def validate_network(config_path: str | Path) -> ValidationWorkflowResult:
         has_errors=report.has_errors,
         issue_counts=report.count_by_severity(),
         report_paths=report_paths,
-        gis_paths={
-            "combined_pipes": combined_path,
-            "working_geopackage": working_path,
-        },
+        gis_paths={"combined_pipes": combined_path, "working_geopackage": working_path},
         inp_paths={"inp": inp_path},
         cleaning_report=cleaning_report,
         connectivity_report=connectivity_report,
         elevation_report=elevation_report,
         hydraulic_report=hydraulic_report,
+        demand_report=demand_report,
         basic_model_report=basic_model_report,
         topology_review_report=topology_review_report,
     )
@@ -175,14 +182,8 @@ def _snap_tolerance_m(config: dict[str, Any]) -> float:
 
 def main() -> None:
     """Command-line entrypoint for network validation."""
-    parser = argparse.ArgumentParser(
-        description="Validate a GIS pipe network for EPANET export."
-    )
-    parser.add_argument(
-        "--config",
-        required=True,
-        help="Path to the workflow YAML configuration.",
-    )
+    parser = argparse.ArgumentParser(description="Validate a GIS pipe network for EPANET export.")
+    parser.add_argument("--config", required=True, help="Path to the workflow YAML configuration.")
     args = parser.parse_args()
     result = validate_network(args.config)
     report_paths = {key: str(value) for key, value in result.report_paths.items()}
@@ -196,12 +197,8 @@ def main() -> None:
         "cleaning": {
             "snapped_endpoint_count": result.cleaning_report.snapped_endpoint_count,
             "snap_group_count": result.cleaning_report.snap_group_count,
-            "endpoint_to_segment_snap_count": (
-                result.cleaning_report.endpoint_to_segment_snap_count
-            ),
-            "connection_split_point_count": (
-                result.cleaning_report.connection_split_point_count
-            ),
+            "endpoint_to_segment_snap_count": result.cleaning_report.endpoint_to_segment_snap_count,
+            "connection_split_point_count": result.cleaning_report.connection_split_point_count,
             "split_pipe_count": result.cleaning_report.split_pipe_count,
             "output_feature_count": result.cleaning_report.output_feature_count,
         },
@@ -225,17 +222,20 @@ def main() -> None:
             "invalid_value_count": result.hydraulic_report.invalid_value_count,
             "undefined_category_count": result.hydraulic_report.undefined_category_count,
         },
+        "demands": {
+            "node_count": result.demand_report.node_count,
+            "existing_demand_count": result.demand_report.existing_demand_count,
+            "default_demand_count": result.demand_report.default_demand_count,
+            "rule_demand_count": result.demand_report.rule_demand_count,
+            "missing_demand_count": result.demand_report.missing_demand_count,
+        },
         "topology_review": {
             "pipe_count": result.topology_review_report.pipe_count,
             "junction_count": result.topology_review_report.junction_count,
             "free_endpoint_count": result.topology_review_report.free_endpoint_count,
-            "disconnected_component_count": (
-                result.topology_review_report.disconnected_component_count
-            ),
+            "disconnected_component_count": result.topology_review_report.disconnected_component_count,
             "short_pipe_count": result.topology_review_report.short_pipe_count,
-            "possible_unconnected_crossing_count": (
-                result.topology_review_report.possible_unconnected_crossing_count
-            ),
+            "possible_unconnected_crossing_count": result.topology_review_report.possible_unconnected_crossing_count,
             "issue_count": result.topology_review_report.issue_count,
         },
         "basic_model_validation": {
