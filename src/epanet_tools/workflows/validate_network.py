@@ -56,7 +56,10 @@ def validate_network(config_path: str | Path) -> ValidationWorkflowResult:
         has_errors=report.has_errors,
         issue_counts=report.count_by_severity(),
         report_paths=report_paths,
-        gis_paths={"combined_pipes": combined_path, "working_geopackage": working_path},
+        gis_paths={
+            "combined_pipes": combined_path,
+            "working_geopackage": working_path,
+        },
     )
 
 
@@ -74,8 +77,14 @@ def _pipe_inputs(inputs: dict[str, Any]) -> list[dict[str, Any]]:
 
 def main() -> None:
     """Command-line entrypoint for network validation."""
-    parser = argparse.ArgumentParser(description="Validate a GIS pipe network for EPANET export.")
-    parser.add_argument("--config", required=True, help="Path to the workflow YAML configuration.")
+    parser = argparse.ArgumentParser(
+        description="Validate a GIS pipe network for EPANET export."
+    )
+    parser.add_argument(
+        "--config",
+        required=True,
+        help="Path to the workflow YAML configuration.",
+    )
     args = parser.parse_args()
     result = validate_network(args.config)
     report_paths = {key: str(value) for key, value in result.report_paths.items()}
