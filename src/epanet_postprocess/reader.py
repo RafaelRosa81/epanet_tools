@@ -64,7 +64,7 @@ def _quality_value(values: list[str]) -> float:
     return float("nan")
 
 
-def _status_value(values: list[str]) -> str | pd._libs.missing.NAType:
+def _status_value(values: list[str]) -> Any:
     if len(values) > 4:
         return " ".join(values[4:])
     return pd.NA
