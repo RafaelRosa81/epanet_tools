@@ -1,0 +1,23 @@
+name: epanet_tools
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - geopandas
+  - shapely
+  - rasterio
+  - networkx
+  - numpy
+  - pandas
+  - pyproj
+  - pyyaml
+  - pyogrio
+  - fiona
+  - pytest
+  - ruff
+  - mypy
+  - pre-commit
+  - pip
+  - pip:
+      - -e .
