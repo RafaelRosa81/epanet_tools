@@ -28,7 +28,7 @@ def test_validate_network_workflow_reads_vector_layer_and_writes_reports(tmp_pat
         "name": "demo",
         "outdir": str(outdir),
         "inputs": {"pipes": [{"path": str(vector_path), "layer": "pipes"}]},
-        "spatial": {"working_crs": "EPSG:32721"},
+        "spatial": {"working_crs": "EPSG:32721", "snap_tolerance_m": 0.2},
         "topology": {"explode_multilines": True},
     }
     config_path.write_text(yaml.safe_dump(config), encoding="utf-8")
@@ -66,7 +66,7 @@ def test_validate_network_workflow_combines_multiple_pipe_layers(tmp_path) -> No
                 {"path": str(vector_path_2), "layer": "pipes"},
             ]
         },
-        "spatial": {"working_crs": "EPSG:32721"},
+        "spatial": {"working_crs": "EPSG:32721", "snap_tolerance_m": 0.2},
         "topology": {"explode_multilines": True},
     }
     config_path.write_text(yaml.safe_dump(config), encoding="utf-8")
@@ -87,6 +87,10 @@ def test_validate_network_workflow_combines_multiple_pipe_layers(tmp_path) -> No
     assert set(WORKING_GPKG_LAYERS).issubset(working_layers)
 
     pipes_raw = gpd.read_file(result.gis_paths["working_geopackage"], layer="pipes_raw")
+    pipes_clean = gpd.read_file(result.gis_paths["working_geopackage"], layer="pipes_clean")
     assert len(pipes_raw) == 2
+    assert len(pipes_clean) == 2
     assert pipes_raw["_source_order"].tolist() == [1, 2]
+    assert pipes_clean["_source_order"].tolist() == [1, 2]
     assert pipes_raw.crs == "EPSG:32721"
+    assert pipes_clean.crs == "EPSG:32721"
