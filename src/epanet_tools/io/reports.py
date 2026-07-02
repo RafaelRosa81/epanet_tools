@@ -41,7 +41,8 @@ def write_validation_report(
     json_path = report_dir / f"{name}_validation.json"
     csv_path = report_dir / f"{name}_validation.csv"
 
-    json_path.write_text(json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8")
+    json_text = json.dumps(summary, indent=2, ensure_ascii=False)
+    json_path.write_text(json_text, encoding="utf-8")
     pd.DataFrame.from_records(records).to_csv(csv_path, index=False)
 
     return {"json": json_path, "csv": csv_path}
