@@ -87,10 +87,17 @@ def test_validate_network_workflow_combines_multiple_pipe_layers(tmp_path) -> No
     assert set(WORKING_GPKG_LAYERS).issubset(working_layers)
 
     pipes_raw = gpd.read_file(result.gis_paths["working_geopackage"], layer="pipes_raw")
+    pipes_clean_auto = gpd.read_file(
+        result.gis_paths["working_geopackage"],
+        layer="pipes_clean_auto",
+    )
     pipes_clean = gpd.read_file(result.gis_paths["working_geopackage"], layer="pipes_clean")
     assert len(pipes_raw) == 2
+    assert len(pipes_clean_auto) == 2
     assert len(pipes_clean) == 2
     assert pipes_raw["_source_order"].tolist() == [1, 2]
+    assert pipes_clean_auto["_source_order"].tolist() == [1, 2]
     assert pipes_clean["_source_order"].tolist() == [1, 2]
     assert pipes_raw.crs == "EPSG:32721"
+    assert pipes_clean_auto.crs == "EPSG:32721"
     assert pipes_clean.crs == "EPSG:32721"
