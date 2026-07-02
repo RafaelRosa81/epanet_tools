@@ -17,6 +17,7 @@ from epanet_tools.io.vector import read_pipe_layers
 from epanet_tools.terrain.elevation import ElevationSamplingReport, sample_junction_elevations
 from epanet_tools.topology.cleaning import CleaningReport, normalize_pipe_topology
 from epanet_tools.topology.connectivity import ConnectivityReport, build_junctions_and_connectivity
+from epanet_tools.topology.review import TopologyReviewReport, review_normalized_topology
 from epanet_tools.topology.validation import PipeValidationOptions, validate_pipe_layer
 
 
@@ -36,6 +37,7 @@ class ValidationWorkflowResult:
     elevation_report: ElevationSamplingReport
     hydraulic_report: HydraulicAttributeReport
     basic_model_report: BasicModelValidationReport
+    topology_review_report: TopologyReviewReport
 
 
 def validate_network(config_path: str | Path) -> ValidationWorkflowResult:
@@ -73,6 +75,11 @@ def validate_network(config_path: str | Path) -> ValidationWorkflowResult:
         junctions,
         dem_path=inputs.get("dem"),
         dem_crs_override=inputs.get("dem_crs"),
+    )
+    topology_errors, topology_report, topology_review_report = review_normalized_topology(
+        pipes_clean,
+        junctions,
+        min_pipe_length_m=float(topology_config.get("min_length_m", 0.05)),
     )
     basic_model_report = validate_basic_epanet_model(junctions, pipes_clean)
 
@@ -116,6 +123,7 @@ def validate_network(config_path: str | Path) -> ValidationWorkflowResult:
         elevation_report=elevation_report,
         hydraulic_report=hydraulic_report,
         basic_model_report=basic_model_report,
+        topology_review_report=topology_review_report,
     )
 
 
@@ -200,6 +208,19 @@ def main() -> None:
             "missing_required_count": result.hydraulic_report.missing_required_count,
             "invalid_value_count": result.hydraulic_report.invalid_value_count,
             "undefined_category_count": result.hydraulic_report.undefined_category_count,
+        },
+        "topology_review": {
+            "pipe_count": result.topology_review_report.pipe_count,
+            "junction_count": result.topology_review_report.junction_count,
+            "free_endpoint_count": result.topology_review_report.free_endpoint_count,
+            "disconnected_component_count": (
+                result.topology_review_report.disconnected_component_count
+            ),
+            "short_pipe_count": result.topology_review_report.short_pipe_count,
+            "possible_unconnected_crossing_count": (
+                result.topology_review_report.possible_unconnected_crossing_count
+            ),
+            "issue_count": result.topology_review_report.issue_count,
         },
         "basic_model_validation": {
             "junction_count": result.basic_model_report.junction_count,
