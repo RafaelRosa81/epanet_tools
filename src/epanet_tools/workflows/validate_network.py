@@ -82,15 +82,14 @@ def main() -> None:
     )
     args = parser.parse_args()
     result = validate_network(args.config)
-    print(
-        {
-            "status": result.status,
-            "feature_count": result.feature_count,
-            "has_errors": result.has_errors,
-            "issue_counts": result.issue_counts,
-            "report_paths": {key: str(value) for key, value in result.report_paths.items()},
-        }
-    )
+    output = {
+        "status": result.status,
+        "feature_count": result.feature_count,
+        "has_errors": result.has_errors,
+        "issue_counts": result.issue_counts,
+        "report_paths": {key: str(value) for key, value in result.report_paths.items()},
+    }
+    print(output)
 
 
 if __name__ == "__main__":
