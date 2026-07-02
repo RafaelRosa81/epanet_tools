@@ -12,6 +12,7 @@ from epanet_tools.io.gis_outputs import write_combined_pipe_layer, write_working
 from epanet_tools.io.reports import write_validation_report
 from epanet_tools.io.vector import read_pipe_layers
 from epanet_tools.topology.cleaning import CleaningReport, normalize_pipe_topology
+from epanet_tools.topology.connectivity import ConnectivityReport, build_junctions_and_connectivity
 from epanet_tools.topology.validation import PipeValidationOptions, validate_pipe_layer
 
 
@@ -26,6 +27,7 @@ class ValidationWorkflowResult:
     report_paths: dict[str, Path]
     gis_paths: dict[str, Path]
     cleaning_report: CleaningReport
+    connectivity_report: ConnectivityReport
 
 
 def validate_network(config_path: str | Path) -> ValidationWorkflowResult:
@@ -52,6 +54,9 @@ def validate_network(config_path: str | Path) -> ValidationWorkflowResult:
         pipes,
         tolerance_m=snap_tolerance_m,
     )
+    pipes_clean, junctions, connectivity_report = build_junctions_and_connectivity(
+        pipes_clean_auto
+    )
 
     report_paths = write_validation_report(report, outdir=outdir, name=name)
     combined_path = write_combined_pipe_layer(pipes, outdir=outdir, name=name)
@@ -60,6 +65,8 @@ def validate_network(config_path: str | Path) -> ValidationWorkflowResult:
         outdir=outdir,
         name=name,
         pipes_clean_auto=pipes_clean_auto,
+        pipes_clean=pipes_clean,
+        junctions=junctions,
     )
 
     return ValidationWorkflowResult(
@@ -73,6 +80,7 @@ def validate_network(config_path: str | Path) -> ValidationWorkflowResult:
             "working_geopackage": working_path,
         },
         cleaning_report=cleaning_report,
+        connectivity_report=connectivity_report,
     )
 
 
@@ -133,6 +141,11 @@ def main() -> None:
             ),
             "split_pipe_count": result.cleaning_report.split_pipe_count,
             "output_feature_count": result.cleaning_report.output_feature_count,
+        },
+        "connectivity": {
+            "pipe_count": result.connectivity_report.pipe_count,
+            "junction_count": result.connectivity_report.junction_count,
+            "skipped_geometry_count": result.connectivity_report.skipped_geometry_count,
         },
         "report_paths": report_paths,
         "gis_paths": gis_paths,
