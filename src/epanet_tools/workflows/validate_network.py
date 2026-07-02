@@ -59,7 +59,11 @@ def validate_network(config_path: str | Path) -> ValidationWorkflowResult:
     pipes_clean, junctions, connectivity_report = build_junctions_and_connectivity(
         pipes_clean_auto
     )
-    junctions, elevation_report = sample_junction_elevations(junctions, dem_path=inputs.get("dem"))
+    junctions, elevation_report = sample_junction_elevations(
+        junctions,
+        dem_path=inputs.get("dem"),
+        dem_crs_override=inputs.get("dem_crs"),
+    )
 
     report_paths = write_validation_report(report, outdir=outdir, name=name)
     combined_path = write_combined_pipe_layer(pipes, outdir=outdir, name=name)
