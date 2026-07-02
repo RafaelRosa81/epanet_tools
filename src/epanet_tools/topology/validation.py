@@ -85,7 +85,7 @@ def validate_pipe_layer(
                 )
             )
 
-        if isinstance(geom, LineString | MultiLineString) and geom.length <= opts.min_length_m:
+        if isinstance(geom, (LineString, MultiLineString)) and geom.length <= opts.min_length_m:
             issues.append(
                 ValidationIssue(
                     code="NON_POSITIVE_LENGTH",
