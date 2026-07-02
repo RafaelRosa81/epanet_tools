@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Any
 
 import geopandas as gpd
-from shapely.geometry import LineString, MultiLineString, Point
+from shapely.geometry import GeometryCollection, LineString, MultiLineString, MultiPoint, Point
 from shapely.ops import split
 
 
@@ -21,25 +21,14 @@ class CleaningReport:
     split_pipe_count: int = 0
     output_feature_count: int | None = None
     connection_split_point_count: int = 0
+    intersection_split_point_count: int = 0
 
 
 def normalize_pipe_topology(
     pipes: gpd.GeoDataFrame,
     tolerance_m: float,
 ) -> tuple[gpd.GeoDataFrame, CleaningReport]:
-    """Normalize pipe topology for EPANET-oriented workflows.
-
-    Stages:
-
-    1. Snap near endpoints to a common point.
-    2. Snap endpoints near the interior of another pipe onto that pipe.
-    3. Collect every endpoint that falls on the interior of another pipe.
-    4. Split all target pipes at those connection points.
-
-    Stage 3 is essential for EPANET: if a lateral pipe endpoint falls on the
-    middle of a longer pipe, the longer pipe must be broken into two links so the
-    lateral and both main-pipe parts share the same junction.
-    """
+    """Normalize pipe topology for EPANET-oriented workflows."""
     endpoint_cleaned, endpoint_report = snap_pipe_endpoints(pipes, tolerance_m=tolerance_m)
     if tolerance_m <= 0:
         report = CleaningReport(
@@ -58,7 +47,12 @@ def normalize_pipe_topology(
         segment_cleaned,
         tolerance_m=tolerance_m,
     )
-    all_split_points = _merge_split_points(snap_split_points, connection_split_points)
+    intersection_split_points = _collect_line_intersection_split_points(segment_cleaned)
+    all_split_points = _merge_split_points(
+        snap_split_points,
+        connection_split_points,
+        intersection_split_points,
+    )
     split_cleaned, split_pipe_count = _split_pipes_at_points(segment_cleaned, all_split_points)
 
     report = CleaningReport(
@@ -69,6 +63,7 @@ def normalize_pipe_topology(
         split_pipe_count=split_pipe_count,
         output_feature_count=len(split_cleaned),
         connection_split_point_count=sum(len(points) for points in connection_split_points.values()),
+        intersection_split_point_count=sum(len(points) for points in intersection_split_points.values()),
     )
     return split_cleaned, report
 
@@ -77,12 +72,7 @@ def snap_pipe_endpoints(
     pipes: gpd.GeoDataFrame,
     tolerance_m: float,
 ) -> tuple[gpd.GeoDataFrame, CleaningReport]:
-    """Snap pipe endpoints that fall within a tolerance.
-
-    Only first and last coordinates of LineString geometries are moved. Interior
-    vertices are preserved. MultiLineString geometries are currently left
-    unchanged because they must be explicitly normalized before topology building.
-    """
+    """Snap pipe endpoints that fall within a tolerance."""
     if tolerance_m <= 0:
         cleaned = pipes.copy()
         return cleaned, CleaningReport(len(cleaned), 0, 0, output_feature_count=len(cleaned))
@@ -158,12 +148,6 @@ def _collect_endpoint_connection_split_points(
     pipes: gpd.GeoDataFrame,
     tolerance_m: float,
 ) -> dict[object, list[Point]]:
-    """Collect target-pipe split points implied by endpoints on pipe interiors.
-
-    This pass runs after endpoint snapping. It catches both endpoints that were
-    moved by this workflow and endpoints that were already exactly on top of a
-    target pipe before processing.
-    """
     geometry_column = pipes.geometry.name
     endpoints = _collect_linestring_endpoints(pipes)
     split_points: dict[object, list[Point]] = {}
@@ -181,6 +165,58 @@ def _collect_endpoint_connection_split_points(
                 split_points.setdefault(target_index, []).append(projected_point)
 
     return split_points
+
+
+def _collect_line_intersection_split_points(pipes: gpd.GeoDataFrame) -> dict[object, list[Point]]:
+    geometry_column = pipes.geometry.name
+    items = [(idx, geom) for idx, geom in pipes[geometry_column].items() if isinstance(geom, LineString)]
+    split_points: dict[object, list[Point]] = {}
+
+    for left_pos, (left_index, left_geom) in enumerate(items):
+        for right_index, right_geom in items[left_pos + 1 :]:
+            intersection = left_geom.intersection(right_geom)
+            for point in _points_from_intersection(intersection):
+                _append_if_interior_split_point(split_points, left_index, left_geom, point)
+                _append_if_interior_split_point(split_points, right_index, right_geom, point)
+
+    return split_points
+
+
+def _points_from_intersection(geometry: object) -> list[Point]:
+    if isinstance(geometry, Point):
+        return [geometry]
+    if isinstance(geometry, MultiPoint):
+        return [point for point in geometry.geoms if isinstance(point, Point)]
+    if isinstance(geometry, LineString):
+        coords = list(geometry.coords)
+        return [Point(coords[0]), Point(coords[-1])] if coords else []
+    if isinstance(geometry, MultiLineString):
+        points: list[Point] = []
+        for line in geometry.geoms:
+            coords = list(line.coords)
+            if coords:
+                points.extend([Point(coords[0]), Point(coords[-1])])
+        return points
+    if isinstance(geometry, GeometryCollection):
+        points: list[Point] = []
+        for part in geometry.geoms:
+            points.extend(_points_from_intersection(part))
+        return points
+    return []
+
+
+def _append_if_interior_split_point(
+    split_points: dict[object, list[Point]],
+    row_index: object,
+    line: LineString,
+    point: Point,
+) -> None:
+    projected_distance = line.project(point)
+    if _is_at_line_endpoint(line, projected_distance, 1e-8):
+        return
+    projected_point = line.interpolate(projected_distance)
+    if point.distance(projected_point) <= 1e-8:
+        split_points.setdefault(row_index, []).append(projected_point)
 
 
 def _merge_split_points(
