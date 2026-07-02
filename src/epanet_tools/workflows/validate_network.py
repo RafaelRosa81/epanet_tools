@@ -11,6 +11,7 @@ from epanet_tools.config import load_yaml_config, require_mapping
 from epanet_tools.io.gis_outputs import write_combined_pipe_layer, write_working_geopackage
 from epanet_tools.io.reports import write_validation_report
 from epanet_tools.io.vector import read_pipe_layers
+from epanet_tools.terrain.elevation import ElevationSamplingReport, sample_junction_elevations
 from epanet_tools.topology.cleaning import CleaningReport, normalize_pipe_topology
 from epanet_tools.topology.connectivity import ConnectivityReport, build_junctions_and_connectivity
 from epanet_tools.topology.validation import PipeValidationOptions, validate_pipe_layer
@@ -28,6 +29,7 @@ class ValidationWorkflowResult:
     gis_paths: dict[str, Path]
     cleaning_report: CleaningReport
     connectivity_report: ConnectivityReport
+    elevation_report: ElevationSamplingReport
 
 
 def validate_network(config_path: str | Path) -> ValidationWorkflowResult:
@@ -57,6 +59,7 @@ def validate_network(config_path: str | Path) -> ValidationWorkflowResult:
     pipes_clean, junctions, connectivity_report = build_junctions_and_connectivity(
         pipes_clean_auto
     )
+    junctions, elevation_report = sample_junction_elevations(junctions, dem_path=inputs.get("dem"))
 
     report_paths = write_validation_report(report, outdir=outdir, name=name)
     combined_path = write_combined_pipe_layer(pipes, outdir=outdir, name=name)
@@ -81,6 +84,7 @@ def validate_network(config_path: str | Path) -> ValidationWorkflowResult:
         },
         cleaning_report=cleaning_report,
         connectivity_report=connectivity_report,
+        elevation_report=elevation_report,
     )
 
 
@@ -146,6 +150,12 @@ def main() -> None:
             "pipe_count": result.connectivity_report.pipe_count,
             "junction_count": result.connectivity_report.junction_count,
             "skipped_geometry_count": result.connectivity_report.skipped_geometry_count,
+        },
+        "elevation": {
+            "node_count": result.elevation_report.node_count,
+            "sampled_count": result.elevation_report.sampled_count,
+            "missing_count": result.elevation_report.missing_count,
+            "dem_crs": result.elevation_report.dem_crs,
         },
         "report_paths": report_paths,
         "gis_paths": gis_paths,
