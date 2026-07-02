@@ -1,0 +1,41 @@
+pipeline: validate_network
+name: red_ejemplo
+outdir: outputs/red_ejemplo
+
+inputs:
+  pipes:
+    - path: data/red_tuberias.gpkg
+      layer: tuberias
+  dem: data/mdt.tif
+
+spatial:
+  working_crs: EPSG:32721
+  snap_tolerance_m: 0.20
+  split_at_intersections: true
+  connect_at_crossings: true
+  sample_elevation_method: nearest
+
+topology:
+  explode_multilines: true
+  drop_zero_length: true
+  deduplicate_policy: report_only
+  disconnected_network_policy: warning
+
+hydraulics:
+  units:
+    flow: LPS
+    headloss: H-W
+  pipe_defaults:
+    diameter_mm: 63.0
+    roughness: 140.0
+    minor_loss: 0.0
+    status: OPEN
+  field_mapping:
+    diameter_mm: diametro
+    roughness: rugosidad
+    material: material
+
+export:
+  validation_report: true
+  geopackage: true
+  qgis_styles: true
