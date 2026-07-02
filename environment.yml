@@ -20,4 +20,5 @@ dependencies:
   - pre-commit
   - pip
   - pip:
+      - types-PyYAML
       - -e .
