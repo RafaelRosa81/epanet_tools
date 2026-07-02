@@ -58,15 +58,26 @@ def _validate_columns(df: pd.DataFrame, required: set[str], label: str) -> pd.Da
     return _normalize_time_column(df)
 
 
+def _quality_value(values: list[str]) -> float:
+    if len(values) > 4 and _is_number(values[4]):
+        return float(values[4])
+    return float("nan")
+
+
+def _status_value(values: list[str]) -> str | pd._libs.missing.NAType:
+    if len(values) > 4:
+        return " ".join(values[4:])
+    return pd.NA
+
+
 def read_node_results_csv(path: str | Path, **kwargs: Any) -> pd.DataFrame:
     """Read normalized node results from CSV.
 
     Required columns are ``time`` and ``node_id``. Other expected columns are
     ``demand``, ``head``, ``pressure`` and ``quality``.
     """
-    return _validate_columns(
-        pd.read_csv(path, **kwargs), {"time", "node_id"}, "Node results CSV"
-    )
+    df = pd.read_csv(path, **kwargs)
+    return _validate_columns(df, {"time", "node_id"}, "Node results CSV")
 
 
 def read_link_results_csv(path: str | Path, **kwargs: Any) -> pd.DataFrame:
@@ -75,9 +86,8 @@ def read_link_results_csv(path: str | Path, **kwargs: Any) -> pd.DataFrame:
     Required columns are ``time`` and ``link_id``. Other expected columns are
     ``flow``, ``velocity``, ``headloss`` and ``status``.
     """
-    return _validate_columns(
-        pd.read_csv(path, **kwargs), {"time", "link_id"}, "Link results CSV"
-    )
+    df = pd.read_csv(path, **kwargs)
+    return _validate_columns(df, {"time", "link_id"}, "Link results CSV")
 
 
 def read_rpt(path: str | Path, encoding: str = "utf-8") -> dict[str, Any]:
@@ -119,14 +129,16 @@ def read_rpt(path: str | Path, encoding: str = "utf-8") -> dict[str, Any]:
             continue
 
         stripped = raw_line.strip()
-        if not stripped or stripped.startswith(("Page ", "---", "Node ", "Link ", "ID ")):
+        ignored_prefixes = ("Page ", "---", "Node ", "Link ", "ID ")
+        if not stripped or stripped.startswith(ignored_prefixes):
             continue
 
         values = stripped.split()
         if current_kind == "node":
-            if len(values) < 4 or not all(_is_number(value) for value in values[1:4]):
+            if len(values) < 4:
                 continue
-            quality = float(values[4]) if len(values) > 4 and _is_number(values[4]) else float("nan")
+            if not all(_is_number(value) for value in values[1:4]):
+                continue
             node_rows.append(
                 {
                     "time": current_time,
@@ -134,11 +146,13 @@ def read_rpt(path: str | Path, encoding: str = "utf-8") -> dict[str, Any]:
                     "demand": float(values[1]),
                     "head": float(values[2]),
                     "pressure": float(values[3]),
-                    "quality": quality,
+                    "quality": _quality_value(values),
                 }
             )
         else:
-            if len(values) < 4 or not all(_is_number(value) for value in values[1:4]):
+            if len(values) < 4:
+                continue
+            if not all(_is_number(value) for value in values[1:4]):
                 continue
             link_rows.append(
                 {
@@ -147,7 +161,7 @@ def read_rpt(path: str | Path, encoding: str = "utf-8") -> dict[str, Any]:
                     "flow": float(values[1]),
                     "velocity": float(values[2]),
                     "headloss": float(values[3]),
-                    "status": " ".join(values[4:]) if len(values) > 4 else pd.NA,
+                    "status": _status_value(values),
                 }
             )
 
@@ -180,6 +194,8 @@ def read_rpt(path: str | Path, encoding: str = "utf-8") -> dict[str, Any]:
             "parser": "epanet_postprocess.read_rpt",
             "node_records": len(nodes),
             "link_records": len(links),
+            "node_count": int(nodes["node_id"].nunique()) if not nodes.empty else 0,
+            "link_count": int(links["link_id"].nunique()) if not links.empty else 0,
             "node_time_steps": int(nodes["time"].nunique()) if not nodes.empty else 0,
             "link_time_steps": int(links["time"].nunique()) if not links.empty else 0,
             "units": units,
