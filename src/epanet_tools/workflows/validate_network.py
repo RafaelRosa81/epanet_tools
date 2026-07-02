@@ -9,6 +9,7 @@ from typing import Any
 
 from epanet_tools.config import load_yaml_config, require_mapping
 from epanet_tools.hydraulic.attributes import HydraulicAttributeReport, apply_hydraulic_attributes
+from epanet_tools.hydraulic.validation import BasicModelValidationReport, validate_basic_epanet_model
 from epanet_tools.io.gis_outputs import write_combined_pipe_layer, write_working_geopackage
 from epanet_tools.io.inp import write_basic_inp
 from epanet_tools.io.reports import write_validation_report
@@ -34,6 +35,7 @@ class ValidationWorkflowResult:
     connectivity_report: ConnectivityReport
     elevation_report: ElevationSamplingReport
     hydraulic_report: HydraulicAttributeReport
+    basic_model_report: BasicModelValidationReport
 
 
 def validate_network(config_path: str | Path) -> ValidationWorkflowResult:
@@ -72,6 +74,7 @@ def validate_network(config_path: str | Path) -> ValidationWorkflowResult:
         dem_path=inputs.get("dem"),
         dem_crs_override=inputs.get("dem_crs"),
     )
+    basic_model_report = validate_basic_epanet_model(junctions, pipes_clean)
 
     report_paths = write_validation_report(report, outdir=outdir, name=name)
     combined_path = write_combined_pipe_layer(pipes, outdir=outdir, name=name)
@@ -107,6 +110,7 @@ def validate_network(config_path: str | Path) -> ValidationWorkflowResult:
         connectivity_report=connectivity_report,
         elevation_report=elevation_report,
         hydraulic_report=hydraulic_report,
+        basic_model_report=basic_model_report,
     )
 
 
@@ -188,6 +192,20 @@ def main() -> None:
             "missing_required_count": result.hydraulic_report.missing_required_count,
             "invalid_value_count": result.hydraulic_report.invalid_value_count,
             "undefined_category_count": result.hydraulic_report.undefined_category_count,
+        },
+        "basic_model_validation": {
+            "junction_count": result.basic_model_report.junction_count,
+            "pipe_count": result.basic_model_report.pipe_count,
+            "missing_elevations": result.basic_model_report.missing_elevations,
+            "missing_diameters": result.basic_model_report.missing_diameters,
+            "missing_roughness": result.basic_model_report.missing_roughness,
+            "missing_minor_loss": result.basic_model_report.missing_minor_loss,
+            "invalid_pipe_status": result.basic_model_report.invalid_pipe_status,
+            "invalid_node_references": result.basic_model_report.invalid_node_references,
+            "self_loop_pipes": result.basic_model_report.self_loop_pipes,
+            "isolated_junctions": result.basic_model_report.isolated_junctions,
+            "disconnected_components": result.basic_model_report.disconnected_components,
+            "export_ready": result.basic_model_report.export_ready,
         },
         "report_paths": report_paths,
         "gis_paths": gis_paths,
