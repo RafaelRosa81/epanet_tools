@@ -175,6 +175,9 @@ def main() -> None:
             "endpoint_to_segment_snap_count": (
                 result.cleaning_report.endpoint_to_segment_snap_count
             ),
+            "connection_split_point_count": (
+                result.cleaning_report.connection_split_point_count
+            ),
             "split_pipe_count": result.cleaning_report.split_pipe_count,
             "output_feature_count": result.cleaning_report.output_feature_count,
         },
