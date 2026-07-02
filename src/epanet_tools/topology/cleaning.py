@@ -6,8 +6,8 @@ from dataclasses import dataclass
 from typing import Any
 
 import geopandas as gpd
-from shapely.geometry import GeometryCollection, LineString, MultiLineString, MultiPoint, Point
-from shapely.ops import split
+from shapely.geometry import LineString, MultiLineString, Point
+from shapely.ops import substring
 
 
 @dataclass(frozen=True)
@@ -21,14 +21,18 @@ class CleaningReport:
     split_pipe_count: int = 0
     output_feature_count: int | None = None
     connection_split_point_count: int = 0
-    intersection_split_point_count: int = 0
 
 
 def normalize_pipe_topology(
     pipes: gpd.GeoDataFrame,
     tolerance_m: float,
 ) -> tuple[gpd.GeoDataFrame, CleaningReport]:
-    """Normalize pipe topology for EPANET-oriented workflows."""
+    """Normalize pipe topology using hydraulic endpoint-connection rules.
+
+    Pipes are split only where a pipe endpoint connects to another pipe. Pure
+    interior-interior line crossings are ignored because they may represent pipes
+    crossing in plan without hydraulic connection.
+    """
     endpoint_cleaned, endpoint_report = snap_pipe_endpoints(pipes, tolerance_m=tolerance_m)
     if tolerance_m <= 0:
         report = CleaningReport(
@@ -47,12 +51,7 @@ def normalize_pipe_topology(
         segment_cleaned,
         tolerance_m=tolerance_m,
     )
-    intersection_split_points = _collect_line_intersection_split_points(segment_cleaned)
-    all_split_points = _merge_split_points(
-        snap_split_points,
-        connection_split_points,
-        intersection_split_points,
-    )
+    all_split_points = _merge_split_points(snap_split_points, connection_split_points)
     split_cleaned, split_pipe_count = _split_pipes_at_points(segment_cleaned, all_split_points)
 
     report = CleaningReport(
@@ -63,7 +62,6 @@ def normalize_pipe_topology(
         split_pipe_count=split_pipe_count,
         output_feature_count=len(split_cleaned),
         connection_split_point_count=sum(len(points) for points in connection_split_points.values()),
-        intersection_split_point_count=sum(len(points) for points in intersection_split_points.values()),
     )
     return split_cleaned, report
 
@@ -148,6 +146,7 @@ def _collect_endpoint_connection_split_points(
     pipes: gpd.GeoDataFrame,
     tolerance_m: float,
 ) -> dict[object, list[Point]]:
+    """Collect target-pipe split points implied by endpoints on pipe interiors."""
     geometry_column = pipes.geometry.name
     endpoints = _collect_linestring_endpoints(pipes)
     split_points: dict[object, list[Point]] = {}
@@ -165,58 +164,6 @@ def _collect_endpoint_connection_split_points(
                 split_points.setdefault(target_index, []).append(projected_point)
 
     return split_points
-
-
-def _collect_line_intersection_split_points(pipes: gpd.GeoDataFrame) -> dict[object, list[Point]]:
-    geometry_column = pipes.geometry.name
-    items = [(idx, geom) for idx, geom in pipes[geometry_column].items() if isinstance(geom, LineString)]
-    split_points: dict[object, list[Point]] = {}
-
-    for left_pos, (left_index, left_geom) in enumerate(items):
-        for right_index, right_geom in items[left_pos + 1 :]:
-            intersection = left_geom.intersection(right_geom)
-            for point in _points_from_intersection(intersection):
-                _append_if_interior_split_point(split_points, left_index, left_geom, point)
-                _append_if_interior_split_point(split_points, right_index, right_geom, point)
-
-    return split_points
-
-
-def _points_from_intersection(geometry: object) -> list[Point]:
-    if isinstance(geometry, Point):
-        return [geometry]
-    if isinstance(geometry, MultiPoint):
-        return [point for point in geometry.geoms if isinstance(point, Point)]
-    if isinstance(geometry, LineString):
-        coords = list(geometry.coords)
-        return [Point(coords[0]), Point(coords[-1])] if coords else []
-    if isinstance(geometry, MultiLineString):
-        points: list[Point] = []
-        for line in geometry.geoms:
-            coords = list(line.coords)
-            if coords:
-                points.extend([Point(coords[0]), Point(coords[-1])])
-        return points
-    if isinstance(geometry, GeometryCollection):
-        points: list[Point] = []
-        for part in geometry.geoms:
-            points.extend(_points_from_intersection(part))
-        return points
-    return []
-
-
-def _append_if_interior_split_point(
-    split_points: dict[object, list[Point]],
-    row_index: object,
-    line: LineString,
-    point: Point,
-) -> None:
-    projected_distance = line.project(point)
-    if _is_at_line_endpoint(line, projected_distance, 1e-8):
-        return
-    projected_point = line.interpolate(projected_distance)
-    if point.distance(projected_point) <= 1e-8:
-        split_points.setdefault(row_index, []).append(projected_point)
 
 
 def _merge_split_points(
@@ -264,32 +211,37 @@ def _split_pipes_at_points(
 
 
 def _split_line_at_points(line: LineString, points: list[Point]) -> list[LineString]:
-    pieces = [line]
-    unique_points = _unique_points_on_line(line, points)
-    for point in unique_points:
-        next_pieces: list[LineString] = []
-        for piece in pieces:
-            if piece.distance(point) > 1e-8 or _point_is_at_piece_endpoint(piece, point):
-                next_pieces.append(piece)
-                continue
-            split_result = split(piece, point)
-            next_pieces.extend([geom for geom in split_result.geoms if isinstance(geom, LineString)])
-        pieces = next_pieces
-    return [piece for piece in pieces if piece.length > 0]
+    distances = _unique_split_distances(line, points)
+    if not distances:
+        return [line]
 
-
-def _unique_points_on_line(line: LineString, points: list[Point]) -> list[Point]:
-    seen_distances: set[float] = set()
-    unique: list[Point] = []
-    for point in points:
-        projected_distance = round(line.project(point), 8)
-        if projected_distance in seen_distances:
+    cut_distances = [0.0, *distances, float(line.length)]
+    pieces: list[LineString] = []
+    for start, end in zip(cut_distances, cut_distances[1:], strict=False):
+        if end - start <= 1e-8:
             continue
+        piece = substring(line, start, end)
+        if isinstance(piece, LineString) and piece.length > 0:
+            pieces.append(piece)
+    return pieces or [line]
+
+
+def _unique_split_distances(line: LineString, points: list[Point]) -> list[float]:
+    distances: list[float] = []
+    seen: set[float] = set()
+    for point in points:
+        projected_distance = line.project(point)
         if _is_at_line_endpoint(line, projected_distance, 1e-8):
             continue
-        seen_distances.add(projected_distance)
-        unique.append(line.interpolate(projected_distance))
-    return unique
+        projected_point = line.interpolate(projected_distance)
+        if point.distance(projected_point) > 1e-6:
+            continue
+        key = round(projected_distance, 8)
+        if key in seen:
+            continue
+        seen.add(key)
+        distances.append(float(projected_distance))
+    return sorted(distances)
 
 
 def _collect_linestring_endpoints(
@@ -372,8 +324,3 @@ def _replacement_coordinate(current_coord: tuple[float, ...], replacement: Point
 
 def _is_at_line_endpoint(line: LineString, projected_distance: float, tolerance_m: float) -> bool:
     return projected_distance <= tolerance_m or line.length - projected_distance <= tolerance_m
-
-
-def _point_is_at_piece_endpoint(line: LineString, point: Point) -> bool:
-    coords = list(line.coords)
-    return Point(coords[0]).distance(point) <= 1e-8 or Point(coords[-1]).distance(point) <= 1e-8
