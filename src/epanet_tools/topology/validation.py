@@ -8,7 +8,7 @@ from typing import Any
 import geopandas as gpd
 from shapely.geometry import LineString, MultiLineString
 
-from epanet_tools.models import ValidationIssue
+from epanet_tools.models import Severity, ValidationIssue
 
 
 @dataclass(frozen=True)
@@ -74,7 +74,7 @@ def validate_pipe_layer(
 
         geom_type = geom.geom_type
         if geom_type not in opts.allowed_geometry_types:
-            severity = "error"
+            severity: Severity = "error"
             if geom_type == "MultiLineString" and opts.allow_multilines:
                 severity = "warning"
             issues.append(
