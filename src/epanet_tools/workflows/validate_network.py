@@ -10,6 +10,7 @@ from typing import Any
 from epanet_tools.config import load_yaml_config, require_mapping
 from epanet_tools.hydraulic.attributes import HydraulicAttributeReport, apply_hydraulic_attributes
 from epanet_tools.io.gis_outputs import write_combined_pipe_layer, write_working_geopackage
+from epanet_tools.io.inp import write_basic_inp
 from epanet_tools.io.reports import write_validation_report
 from epanet_tools.io.vector import read_pipe_layers
 from epanet_tools.terrain.elevation import ElevationSamplingReport, sample_junction_elevations
@@ -28,6 +29,7 @@ class ValidationWorkflowResult:
     issue_counts: dict[str, int]
     report_paths: dict[str, Path]
     gis_paths: dict[str, Path]
+    inp_paths: dict[str, Path]
     cleaning_report: CleaningReport
     connectivity_report: ConnectivityReport
     elevation_report: ElevationSamplingReport
@@ -81,6 +83,14 @@ def validate_network(config_path: str | Path) -> ValidationWorkflowResult:
         pipes_clean=pipes_clean,
         junctions=junctions,
     )
+    inp_path = write_basic_inp(
+        junctions=junctions,
+        pipes=pipes_clean,
+        outdir=outdir,
+        name=name,
+        flow_units=str(_mapping(config, "hydraulics").get("flow_units", "LPS")),
+        headloss=str(_mapping(config, "hydraulics").get("headloss", "H-W")),
+    )
 
     return ValidationWorkflowResult(
         status="failed" if report.has_errors else "ok",
@@ -92,6 +102,7 @@ def validate_network(config_path: str | Path) -> ValidationWorkflowResult:
             "combined_pipes": combined_path,
             "working_geopackage": working_path,
         },
+        inp_paths={"inp": inp_path},
         cleaning_report=cleaning_report,
         connectivity_report=connectivity_report,
         elevation_report=elevation_report,
@@ -143,6 +154,7 @@ def main() -> None:
     result = validate_network(args.config)
     report_paths = {key: str(value) for key, value in result.report_paths.items()}
     gis_paths = {key: str(value) for key, value in result.gis_paths.items()}
+    inp_paths = {key: str(value) for key, value in result.inp_paths.items()}
     output = {
         "status": result.status,
         "feature_count": result.feature_count,
@@ -179,6 +191,7 @@ def main() -> None:
         },
         "report_paths": report_paths,
         "gis_paths": gis_paths,
+        "inp_paths": inp_paths,
     }
     print(output)
 
