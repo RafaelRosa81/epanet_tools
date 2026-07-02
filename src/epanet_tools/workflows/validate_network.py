@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from epanet_tools.config import load_yaml_config, require_mapping
+from epanet_tools.hydraulic.attributes import HydraulicAttributeReport, apply_hydraulic_attributes
 from epanet_tools.io.gis_outputs import write_combined_pipe_layer, write_working_geopackage
 from epanet_tools.io.reports import write_validation_report
 from epanet_tools.io.vector import read_pipe_layers
@@ -30,6 +31,7 @@ class ValidationWorkflowResult:
     cleaning_report: CleaningReport
     connectivity_report: ConnectivityReport
     elevation_report: ElevationSamplingReport
+    hydraulic_report: HydraulicAttributeReport
 
 
 def validate_network(config_path: str | Path) -> ValidationWorkflowResult:
@@ -58,6 +60,10 @@ def validate_network(config_path: str | Path) -> ValidationWorkflowResult:
     )
     pipes_clean, junctions, connectivity_report = build_junctions_and_connectivity(
         pipes_clean_auto
+    )
+    pipes_clean, hydraulic_report = apply_hydraulic_attributes(
+        pipes_clean,
+        hydraulics_config=_mapping(config, "hydraulics"),
     )
     junctions, elevation_report = sample_junction_elevations(
         junctions,
@@ -89,6 +95,7 @@ def validate_network(config_path: str | Path) -> ValidationWorkflowResult:
         cleaning_report=cleaning_report,
         connectivity_report=connectivity_report,
         elevation_report=elevation_report,
+        hydraulic_report=hydraulic_report,
     )
 
 
@@ -160,6 +167,15 @@ def main() -> None:
             "sampled_count": result.elevation_report.sampled_count,
             "missing_count": result.elevation_report.missing_count,
             "dem_crs": result.elevation_report.dem_crs,
+        },
+        "hydraulics": {
+            "pipe_count": result.hydraulic_report.pipe_count,
+            "existing_value_count": result.hydraulic_report.existing_value_count,
+            "category_value_count": result.hydraulic_report.category_value_count,
+            "default_value_count": result.hydraulic_report.default_value_count,
+            "missing_required_count": result.hydraulic_report.missing_required_count,
+            "invalid_value_count": result.hydraulic_report.invalid_value_count,
+            "undefined_category_count": result.hydraulic_report.undefined_category_count,
         },
         "report_paths": report_paths,
         "gis_paths": gis_paths,
