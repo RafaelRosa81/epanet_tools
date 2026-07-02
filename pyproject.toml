@@ -21,9 +21,13 @@ dependencies = [
   "pandas>=2.0",
   "pyproj>=3.6",
   "pyyaml>=6.0",
+  "matplotlib>=3.7",
 ]
 
 [project.optional-dependencies]
+excel = [
+  "openpyxl>=3.1",
+]
 dev = [
   "pytest>=8.0",
   "ruff>=0.5",
@@ -50,7 +54,7 @@ indent-style = "space"
 
 [tool.mypy]
 python_version = "3.11"
-packages = ["epanet_tools"]
+packages = ["epanet_tools", "epanet_postprocess"]
 ignore_missing_imports = true
 strict = false
 warn_unused_ignores = true
