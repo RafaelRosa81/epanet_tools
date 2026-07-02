@@ -7,13 +7,13 @@ network. They are not a direct mirror of the EPANET INP text format.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from typing import Any, Literal
 
 Severity = Literal["info", "warning", "error"]
 
 
-class PipeStatus(str, Enum):
+class PipeStatus(StrEnum):
     """Supported initial pipe statuses for EPANET export."""
 
     OPEN = "OPEN"
