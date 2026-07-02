@@ -74,7 +74,9 @@ def validate_pipe_layer(
 
         geom_type = geom.geom_type
         if geom_type not in opts.allowed_geometry_types:
-            severity = "warning" if geom_type == "MultiLineString" and opts.allow_multilines else "error"
+            severity = "error"
+            if geom_type == "MultiLineString" and opts.allow_multilines:
+                severity = "warning"
             issues.append(
                 ValidationIssue(
                     code="UNSUPPORTED_GEOMETRY_TYPE",
