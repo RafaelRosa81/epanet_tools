@@ -12,7 +12,7 @@ from epanet_tools.hydraulic.attributes import HydraulicAttributeReport, apply_hy
 from epanet_tools.hydraulic.validation import BasicModelValidationReport, validate_basic_epanet_model
 from epanet_tools.io.gis_outputs import write_combined_pipe_layer, write_working_geopackage
 from epanet_tools.io.inp import write_basic_inp
-from epanet_tools.io.reports import write_validation_report
+from epanet_tools.io.reports import write_basic_model_validation_report, write_validation_report
 from epanet_tools.io.vector import read_pipe_layers
 from epanet_tools.terrain.elevation import ElevationSamplingReport, sample_junction_elevations
 from epanet_tools.topology.cleaning import CleaningReport, normalize_pipe_topology
@@ -77,6 +77,11 @@ def validate_network(config_path: str | Path) -> ValidationWorkflowResult:
     basic_model_report = validate_basic_epanet_model(junctions, pipes_clean)
 
     report_paths = write_validation_report(report, outdir=outdir, name=name)
+    report_paths["basic_model_validation_csv"] = write_basic_model_validation_report(
+        basic_model_report,
+        outdir=outdir,
+        name=name,
+    )
     combined_path = write_combined_pipe_layer(pipes, outdir=outdir, name=name)
     working_path = write_working_geopackage(
         pipes,
