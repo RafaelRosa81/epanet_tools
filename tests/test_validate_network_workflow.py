@@ -1,9 +1,11 @@
 import json
 
+import fiona
 import geopandas as gpd
 import yaml
 from shapely.geometry import LineString
 
+from epanet_tools.io.gis_outputs import WORKING_GPKG_LAYERS
 from epanet_tools.workflows.validate_network import validate_network
 
 
@@ -38,6 +40,7 @@ def test_validate_network_workflow_reads_vector_layer_and_writes_reports(tmp_pat
     assert result.report_paths["json"].exists()
     assert result.report_paths["csv"].exists()
     assert result.gis_paths["combined_pipes"].exists()
+    assert result.gis_paths["working_geopackage"].exists()
 
     payload = json.loads(result.report_paths["json"].read_text(encoding="utf-8"))
     assert payload["feature_count"] == 1
@@ -76,3 +79,10 @@ def test_validate_network_workflow_combines_multiple_pipe_layers(tmp_path) -> No
     assert len(combined) == 2
     assert combined["_source_order"].tolist() == [1, 2]
     assert combined.crs == "EPSG:32721"
+
+    working_layers = set(fiona.listlayers(result.gis_paths["working_geopackage"]))
+    assert set(WORKING_GPKG_LAYERS).issubset(working_layers)
+
+    pipes_raw = gpd.read_file(result.gis_paths["working_geopackage"], layer="pipes_raw")
+    assert len(pipes_raw) == 2
+    assert pipes_raw["_source_order"].tolist() == [1, 2]
