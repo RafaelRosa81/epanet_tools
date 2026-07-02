@@ -9,10 +9,10 @@ from epanet_tools.io.gis_outputs import WORKING_GPKG_LAYERS
 from epanet_tools.workflows.validate_network import validate_network
 
 
-def _write_pipes(path, layer, x0) -> None:
+def _write_pipes(path, layer, x0, crs="EPSG:32721") -> None:
     pipes = gpd.GeoDataFrame(
         {"id": [1], "geometry": [LineString([(x0, 0), (x0 + 10, 0)])]},
-        crs="EPSG:32721",
+        crs=crs,
     )
     pipes.to_file(path, layer=layer, driver="GPKG")
 
@@ -28,6 +28,7 @@ def test_validate_network_workflow_reads_vector_layer_and_writes_reports(tmp_pat
         "name": "demo",
         "outdir": str(outdir),
         "inputs": {"pipes": [{"path": str(vector_path), "layer": "pipes"}]},
+        "spatial": {"working_crs": "EPSG:32721"},
         "topology": {"explode_multilines": True},
     }
     config_path.write_text(yaml.safe_dump(config), encoding="utf-8")
@@ -52,8 +53,8 @@ def test_validate_network_workflow_combines_multiple_pipe_layers(tmp_path) -> No
     vector_path_2 = tmp_path / "pipes_2.gpkg"
     outdir = tmp_path / "outputs"
     config_path = tmp_path / "config.yml"
-    _write_pipes(vector_path_1, "pipes", 0)
-    _write_pipes(vector_path_2, "pipes", 20)
+    _write_pipes(vector_path_1, "pipes", 0, crs="EPSG:32721")
+    _write_pipes(vector_path_2, "pipes", -56, crs="EPSG:4326")
 
     config = {
         "pipeline": "validate_network",
@@ -65,6 +66,7 @@ def test_validate_network_workflow_combines_multiple_pipe_layers(tmp_path) -> No
                 {"path": str(vector_path_2), "layer": "pipes"},
             ]
         },
+        "spatial": {"working_crs": "EPSG:32721"},
         "topology": {"explode_multilines": True},
     }
     config_path.write_text(yaml.safe_dump(config), encoding="utf-8")
@@ -78,6 +80,7 @@ def test_validate_network_workflow_combines_multiple_pipe_layers(tmp_path) -> No
     combined = gpd.read_file(result.gis_paths["combined_pipes"], layer="pipes_combined")
     assert len(combined) == 2
     assert combined["_source_order"].tolist() == [1, 2]
+    assert combined["_source_crs"].tolist() == ["EPSG:32721", "EPSG:4326"]
     assert combined.crs == "EPSG:32721"
 
     working_layers = set(fiona.listlayers(result.gis_paths["working_geopackage"]))
@@ -86,3 +89,4 @@ def test_validate_network_workflow_combines_multiple_pipe_layers(tmp_path) -> No
     pipes_raw = gpd.read_file(result.gis_paths["working_geopackage"], layer="pipes_raw")
     assert len(pipes_raw) == 2
     assert pipes_raw["_source_order"].tolist() == [1, 2]
+    assert pipes_raw.crs == "EPSG:32721"
