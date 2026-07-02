@@ -20,25 +20,23 @@ The project starts from geospatial inputs such as pipe layers, DEM/DTM rasters a
 
 ## Repository status
 
-This repository is in the architecture and bootstrap stage. The first implementation milestone is intentionally limited to GIS network validation before automatic correction or `.inp` export.
+The current implementation validates GIS pipe inputs, writes a combined network layer and generates a first `pipes_clean` layer by snapping near pipe endpoints.
 
 ## Package layout
 
 ```text
 src/epanet_tools/
-├── io/              # GIS, raster and EPANET input/output
-├── topology/        # topology validation, snapping, intersections and graph tools
-├── terrain/         # DEM/DTM elevation sampling
-├── hydraulic/       # hydraulic model schema and EPANET model building
-├── editing/         # bulk and spatial editing rules
-├── analysis/        # network and hydraulic analysis utilities
-├── visualization/   # GIS outputs and QGIS styles
-└── workflows/       # end-to-end reproducible workflows
+├── io/
+├── topology/
+├── terrain/
+├── hydraulic/
+├── editing/
+├── analysis/
+├── visualization/
+└── workflows/
 ```
 
 ## Installation
-
-### Conda environment
 
 ```bash
 conda env create -f environment.yml
@@ -46,7 +44,7 @@ conda activate epanet_tools
 pip install -e .
 ```
 
-### Development checks
+## Development checks
 
 ```bash
 pytest
@@ -61,9 +59,7 @@ mypy src
 python -m epanet_tools.workflows.validate_network --config config/validate_network_example.yml
 ```
 
-The initial workflow reads one or several pipe layers, reprojects them in memory to `spatial.working_crs` when that value is provided, validates CRS/geometries and exports QA outputs without modifying source data.
-
-The working CRS must be projected. All later length, snapping and topology operations are expected to use this CRS.
+The workflow reads one or several pipe layers, reprojects them in memory to `spatial.working_crs` when provided, validates CRS/geometries and exports QA outputs without modifying source data.
 
 Generated outputs:
 
@@ -76,7 +72,7 @@ outputs/<run_name>/gis/<run_name>_working.gpkg
 
 Open `<run_name>_network.gpkg` in QGIS and load `pipes_combined` to inspect the network interpreted by the software.
 
-Open `<run_name>_working.gpkg` to inspect the standard working structure for the EPANET workflow:
+Open `<run_name>_working.gpkg` to inspect:
 
 ```text
 pipes_raw
@@ -92,7 +88,7 @@ topology_errors
 topology_report
 ```
 
-At this stage `pipes_raw` is populated from the combined source layers; the other layers are empty placeholders for later processing steps.
+`pipes_raw` is the combined source network. `pipes_clean` is generated from it by snapping pipe endpoints within `snap_tolerance_m`. The remaining layers are placeholders for later processing steps.
 
 ## Documentation
 
