@@ -82,12 +82,16 @@ def main() -> None:
     )
     args = parser.parse_args()
     result = validate_network(args.config)
+    report_paths = {
+        key: str(value)
+        for key, value in result.report_paths.items()
+    }
     output = {
         "status": result.status,
         "feature_count": result.feature_count,
         "has_errors": result.has_errors,
         "issue_counts": result.issue_counts,
-        "report_paths": {key: str(value) for key, value in result.report_paths.items()},
+        "report_paths": report_paths,
     }
     print(output)
 
