@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import json
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
 
+from epanet_tools.hydraulic.validation import BasicModelValidationReport
 from epanet_tools.topology.validation import PipeValidationReport, issues_to_records
 
 
@@ -16,17 +18,7 @@ def write_validation_report(
     outdir: str | Path,
     name: str,
 ) -> dict[str, Path]:
-    """Write validation report artifacts as JSON and CSV.
-
-    Parameters
-    ----------
-    report:
-        Validation report to serialize.
-    outdir:
-        Output directory root.
-    name:
-        Run/model name used as filename prefix.
-    """
+    """Write validation report artifacts as JSON and CSV."""
     report_dir = Path(outdir) / "report"
     report_dir.mkdir(parents=True, exist_ok=True)
 
@@ -46,3 +38,16 @@ def write_validation_report(
     pd.DataFrame.from_records(records).to_csv(csv_path, index=False)
 
     return {"json": json_path, "csv": csv_path}
+
+
+def write_basic_model_validation_report(
+    report: BasicModelValidationReport,
+    outdir: str | Path,
+    name: str,
+) -> Path:
+    """Write the basic EPANET model validation summary as a one-row CSV."""
+    report_dir = Path(outdir) / "report"
+    report_dir.mkdir(parents=True, exist_ok=True)
+    csv_path = report_dir / f"{name}_basic_model_validation.csv"
+    pd.DataFrame([asdict(report)]).to_csv(csv_path, index=False)
+    return csv_path
