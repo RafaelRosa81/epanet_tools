@@ -10,9 +10,10 @@ Required properties:
 
 - Geometry type: `LineString`. `MultiLineString` is currently reported and will later be normalized through explicit explode rules.
 - CRS: all pipe layers must have a defined CRS.
-- CRS compatibility: all pipe layers in the same validation workflow must currently use the same CRS. The software must not silently mix coordinate systems.
-- Projected CRS: metric projected CRS is required for length, snapping and tolerance calculations.
-- Length: calculated from geometry in the layer CRS, not trusted blindly from an attribute field.
+- Working CRS: if `spatial.working_crs` is defined in the YAML configuration, every pipe layer is reprojected in memory to that CRS before combining layers.
+- CRS compatibility without working CRS: if `spatial.working_crs` is not defined, all pipe layers must already use the same CRS.
+- Projected CRS: the working CRS must be projected. Length, snapping and tolerance calculations must not be performed in a geographic CRS.
+- Length: calculated from geometry in the working CRS, not trusted blindly from an attribute field.
 
 The source layers are never overwritten. When layers are combined, each feature keeps traceability fields:
 
@@ -22,6 +23,7 @@ The source layers are never overwritten. When layers are combined, each feature 
 | `_source_path` | source file path |
 | `_source_layer` | source layer name, when applicable |
 | `_source_index` | original feature index before combining layers |
+| `_source_crs` | original CRS before optional in-memory reprojection |
 
 Optional pipe attributes:
 
