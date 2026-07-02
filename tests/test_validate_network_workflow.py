@@ -37,6 +37,7 @@ def test_validate_network_workflow_reads_vector_layer_and_writes_reports(tmp_pat
     assert result.has_errors is False
     assert result.report_paths["json"].exists()
     assert result.report_paths["csv"].exists()
+    assert result.gis_paths["combined_pipes"].exists()
 
     payload = json.loads(result.report_paths["json"].read_text(encoding="utf-8"))
     assert payload["feature_count"] == 1
@@ -70,3 +71,8 @@ def test_validate_network_workflow_combines_multiple_pipe_layers(tmp_path) -> No
     assert result.status == "ok"
     assert result.feature_count == 2
     assert result.has_errors is False
+
+    combined = gpd.read_file(result.gis_paths["combined_pipes"], layer="pipes_combined")
+    assert len(combined) == 2
+    assert combined["_source_order"].tolist() == [1, 2]
+    assert combined.crs == "EPSG:32721"
