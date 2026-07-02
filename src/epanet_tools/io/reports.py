@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import asdict
+from dataclasses import asdict, is_dataclass
 from pathlib import Path
 from typing import Any
 
@@ -46,8 +46,24 @@ def write_basic_model_validation_report(
     name: str,
 ) -> Path:
     """Write the basic EPANET model validation summary as a one-row CSV."""
+    return write_summary_report(
+        report,
+        outdir=outdir,
+        name=name,
+        suffix="basic_model_validation",
+    )
+
+
+def write_summary_report(
+    report: object,
+    outdir: str | Path,
+    name: str,
+    suffix: str,
+) -> Path:
+    """Write a dataclass or mapping summary as a one-row CSV."""
     report_dir = Path(outdir) / "report"
     report_dir.mkdir(parents=True, exist_ok=True)
-    csv_path = report_dir / f"{name}_basic_model_validation.csv"
-    pd.DataFrame([asdict(report)]).to_csv(csv_path, index=False)
+    csv_path = report_dir / f"{name}_{suffix}.csv"
+    payload = asdict(report) if is_dataclass(report) else dict(report)  # type: ignore[arg-type]
+    pd.DataFrame([payload]).to_csv(csv_path, index=False)
     return csv_path
