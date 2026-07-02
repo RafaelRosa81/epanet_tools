@@ -1,7 +1,7 @@
 import geopandas as gpd
-from shapely.geometry import LineString
+from shapely.geometry import LineString, Point
 
-from epanet_tools.topology.cleaning import snap_pipe_endpoints
+from epanet_tools.topology.cleaning import normalize_pipe_topology, snap_pipe_endpoints
 
 
 def test_snap_pipe_endpoints_moves_near_endpoints_to_common_point() -> None:
@@ -48,6 +48,33 @@ def test_snap_pipe_endpoints_preserves_z_coordinates() -> None:
     assert second_start == (10.05, 0.0, 3.0)
     assert report.snapped_endpoint_count == 2
     assert report.snap_group_count == 1
+
+
+def test_normalize_pipe_topology_snaps_endpoint_to_segment_and_splits_target() -> None:
+    pipes = gpd.GeoDataFrame(
+        {
+            "id": ["main", "lateral"],
+            "geometry": [
+                LineString([(0.0, 0.0), (10.0, 0.0)]),
+                LineString([(5.0, 0.15), (5.0, 3.0)]),
+            ],
+        },
+        crs="EPSG:32719",
+    )
+
+    cleaned, report = normalize_pipe_topology(pipes, tolerance_m=0.2)
+
+    assert len(cleaned) == 3
+    assert report.endpoint_to_segment_snap_count == 1
+    assert report.split_pipe_count == 1
+    assert report.output_feature_count == 3
+
+    lateral = cleaned.loc[cleaned["id"] == "lateral"].geometry.iloc[0]
+    assert Point(list(lateral.coords)[0]).equals_exact(Point(5.0, 0.0), tolerance=1e-9)
+
+    main_parts = cleaned.loc[cleaned["id"] == "main"].geometry.tolist()
+    assert len(main_parts) == 2
+    assert sorted(round(part.length, 6) for part in main_parts) == [5.0, 5.0]
 
 
 def test_snap_pipe_endpoints_does_not_move_endpoints_outside_tolerance() -> None:
