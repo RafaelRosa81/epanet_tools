@@ -1,4 +1,4 @@
-"""Topology and geometry validation for pipe GIS layers."""
+"""Pipe GIS layer validation."""
 
 from __future__ import annotations
 
@@ -45,12 +45,7 @@ def validate_pipe_layer(
     pipes: gpd.GeoDataFrame,
     options: PipeValidationOptions | None = None,
 ) -> PipeValidationReport:
-    """Validate a GIS pipe layer without modifying it.
-
-    The function checks only pre-topology conditions: CRS, empty/null geometries,
-    geometry type and non-positive lengths. Automatic snapping or line splitting
-    belongs to later topology-construction steps.
-    """
+    """Validate a GIS pipe layer without modifying it."""
     opts = options or PipeValidationOptions()
     issues: list[ValidationIssue] = []
 
@@ -87,14 +82,18 @@ def validate_pipe_layer(
                 )
             )
 
-        if isinstance(geom, (LineString, MultiLineString)) and geom.length <= opts.min_length_m:
+        is_linear = isinstance(geom, (LineString, MultiLineString))
+        if is_linear and geom.length <= opts.min_length_m:
             issues.append(
                 ValidationIssue(
                     code="NON_POSITIVE_LENGTH",
                     severity="error",
-                    message="Pipe geometry length is not greater than the configured minimum.",
+                    message="Pipe length is not greater than the configured minimum.",
                     element_id=element_id,
-                    details={"length": float(geom.length), "min_length_m": opts.min_length_m},
+                    details={
+                        "length": float(geom.length),
+                        "min_length_m": opts.min_length_m,
+                    },
                 )
             )
 
@@ -121,7 +120,7 @@ def _validate_crs(
             ValidationIssue(
                 code="NON_PROJECTED_CRS",
                 severity="error",
-                message="Pipe layer CRS is not projected. Lengths and tolerances must be metric.",
+                message="Pipe layer CRS is not projected. Use a metric CRS.",
                 details={"crs": str(pipes.crs)},
             )
         )
