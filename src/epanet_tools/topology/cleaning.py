@@ -114,13 +114,19 @@ def _endpoint_replacements(
 
 def _replace_endpoint(geom: LineString, endpoint_position: str, replacement: Point) -> LineString:
     coords = list(geom.coords)
-    new_coord = (replacement.x, replacement.y)
-    if endpoint_position == "start":
-        if coords[0] == new_coord:
-            return geom
-        coords[0] = new_coord
-    elif endpoint_position == "end":
-        if coords[-1] == new_coord:
-            return geom
-        coords[-1] = new_coord
+    endpoint_index = 0 if endpoint_position == "start" else -1
+    current_coord = coords[endpoint_index]
+    new_coord = _replacement_coordinate(current_coord, replacement)
+
+    if current_coord == new_coord:
+        return geom
+
+    coords[endpoint_index] = new_coord
     return LineString(coords)
+
+
+def _replacement_coordinate(current_coord: tuple[float, ...], replacement: Point) -> tuple[float, ...]:
+    """Create a replacement coordinate preserving extra dimensions such as Z."""
+    if len(current_coord) <= 2:
+        return (replacement.x, replacement.y)
+    return (replacement.x, replacement.y, *current_coord[2:])
