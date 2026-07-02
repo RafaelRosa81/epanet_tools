@@ -4,6 +4,10 @@ outdir: outputs/red_ejemplo
 
 inputs:
   pipes:
+    - path: data/tuberias_sector_1.shp
+      layer: null
+    - path: data/tuberias_sector_2.shp
+      layer: null
     - path: data/red_tuberias.gpkg
       layer: tuberias
   dem: data/mdt.tif
@@ -17,6 +21,7 @@ spatial:
 
 topology:
   explode_multilines: true
+  min_length_m: 0.0
   drop_zero_length: true
   deduplicate_policy: report_only
   disconnected_network_policy: warning
