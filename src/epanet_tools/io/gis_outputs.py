@@ -45,22 +45,24 @@ def write_working_geopackage(
     pipes_raw: gpd.GeoDataFrame,
     outdir: str | Path,
     name: str,
+    pipes_clean: gpd.GeoDataFrame | None = None,
 ) -> Path:
-    """Write the standard working GeoPackage used by downstream EPANET steps.
-
-    The current implementation stores `pipes_raw` and creates empty placeholder
-    layers for the planned processing stages. Future workflow steps will fill
-    these layers progressively without modifying the original source files.
-    """
+    """Write the standard working GeoPackage used by downstream EPANET steps."""
     gis_dir = Path(outdir) / "gis"
     gis_dir.mkdir(parents=True, exist_ok=True)
 
     output_path = gis_dir / f"{name}_working.gpkg"
-    export_pipes = _sanitize_for_geopackage(pipes_raw)
-    export_pipes.to_file(output_path, layer="pipes_raw", driver="GPKG")
+    export_raw = _sanitize_for_geopackage(pipes_raw)
+    export_raw.to_file(output_path, layer="pipes_raw", driver="GPKG")
+
+    if pipes_clean is not None:
+        export_clean = _sanitize_for_geopackage(pipes_clean)
+        export_clean.to_file(output_path, layer="pipes_clean", driver="GPKG")
+        empty_line_layers: set[str] = set()
+    else:
+        empty_line_layers = {"pipes_clean"}
 
     layer_geometry_types = {
-        "pipes_clean": "LineString",
         "junctions": "Point",
         "reservoirs": "Point",
         "tanks": "Point",
@@ -73,6 +75,13 @@ def write_working_geopackage(
     }
 
     crs_wkt = pipes_raw.crs.to_wkt() if pipes_raw.crs is not None else None
+    for layer_name in empty_line_layers:
+        _create_empty_layer(
+            output_path=output_path,
+            layer_name=layer_name,
+            geometry_type="LineString",
+            crs_wkt=crs_wkt,
+        )
     for layer_name, geometry_type in layer_geometry_types.items():
         _create_empty_layer(
             output_path=output_path,
