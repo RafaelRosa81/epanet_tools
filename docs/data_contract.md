@@ -4,13 +4,24 @@ This document defines the expected input data for the first `epanet_tools` workf
 
 ## Pipe layers
 
-Pipe layers may be provided as Shapefile, GeoPackage or GeoJSON.
+Pipe layers may be provided as Shapefile, GeoPackage or GeoJSON. A project may define one or several pipe layers. Multiple pipe layers are read and combined into one internal network layer before validation and later topology construction.
 
 Required properties:
 
-- Geometry type: `LineString`. `MultiLineString` support will be implemented through explicit explode/normalization.
-- CRS: projected CRS with metric units. Geographic CRS in degrees must fail validation unless a safe reprojection target is supplied.
-- Length: calculated from geometry in the working CRS, not trusted blindly from an attribute field.
+- Geometry type: `LineString`. `MultiLineString` is currently reported and will later be normalized through explicit explode rules.
+- CRS: all pipe layers must have a defined CRS.
+- CRS compatibility: all pipe layers in the same validation workflow must currently use the same CRS. The software must not silently mix coordinate systems.
+- Projected CRS: metric projected CRS is required for length, snapping and tolerance calculations.
+- Length: calculated from geometry in the layer CRS, not trusted blindly from an attribute field.
+
+The source layers are never overwritten. When layers are combined, each feature keeps traceability fields:
+
+| Field | Meaning |
+|---|---|
+| `_source_order` | order of the input layer in the YAML config |
+| `_source_path` | source file path |
+| `_source_layer` | source layer name, when applicable |
+| `_source_index` | original feature index before combining layers |
 
 Optional pipe attributes:
 
