@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from typing import Any
 
 import geopandas as gpd
-import pandas as pd
 from shapely.geometry import LineString, MultiLineString, Point
 from shapely.ops import split
 
@@ -21,6 +20,7 @@ class CleaningReport:
     endpoint_to_segment_snap_count: int = 0
     split_pipe_count: int = 0
     output_feature_count: int | None = None
+    connection_split_point_count: int = 0
 
 
 def normalize_pipe_topology(
@@ -29,11 +29,16 @@ def normalize_pipe_topology(
 ) -> tuple[gpd.GeoDataFrame, CleaningReport]:
     """Normalize pipe topology for EPANET-oriented workflows.
 
-    Current stages:
+    Stages:
 
     1. Snap near endpoints to a common point.
     2. Snap endpoints near the interior of another pipe onto that pipe.
-    3. Split target pipes at the new connection points.
+    3. Collect every endpoint that falls on the interior of another pipe.
+    4. Split all target pipes at those connection points.
+
+    Stage 3 is essential for EPANET: if a lateral pipe endpoint falls on the
+    middle of a longer pipe, the longer pipe must be broken into two links so the
+    lateral and both main-pipe parts share the same junction.
     """
     endpoint_cleaned, endpoint_report = snap_pipe_endpoints(pipes, tolerance_m=tolerance_m)
     if tolerance_m <= 0:
@@ -45,11 +50,16 @@ def normalize_pipe_topology(
         )
         return endpoint_cleaned, report
 
-    segment_cleaned, segment_snap_count, split_points = _snap_endpoints_to_segments(
+    segment_cleaned, segment_snap_count, snap_split_points = _snap_endpoints_to_segments(
         endpoint_cleaned,
         tolerance_m=tolerance_m,
     )
-    split_cleaned, split_pipe_count = _split_pipes_at_points(segment_cleaned, split_points)
+    connection_split_points = _collect_endpoint_connection_split_points(
+        segment_cleaned,
+        tolerance_m=tolerance_m,
+    )
+    all_split_points = _merge_split_points(snap_split_points, connection_split_points)
+    split_cleaned, split_pipe_count = _split_pipes_at_points(segment_cleaned, all_split_points)
 
     report = CleaningReport(
         feature_count=len(pipes),
@@ -58,6 +68,7 @@ def normalize_pipe_topology(
         endpoint_to_segment_snap_count=segment_snap_count,
         split_pipe_count=split_pipe_count,
         output_feature_count=len(split_cleaned),
+        connection_split_point_count=sum(len(points) for points in connection_split_points.values()),
     )
     return split_cleaned, report
 
@@ -141,6 +152,45 @@ def _snap_endpoints_to_segments(
             snap_count += 1
 
     return cleaned, snap_count, split_points
+
+
+def _collect_endpoint_connection_split_points(
+    pipes: gpd.GeoDataFrame,
+    tolerance_m: float,
+) -> dict[object, list[Point]]:
+    """Collect target-pipe split points implied by endpoints on pipe interiors.
+
+    This pass runs after endpoint snapping. It catches both endpoints that were
+    moved by this workflow and endpoints that were already exactly on top of a
+    target pipe before processing.
+    """
+    geometry_column = pipes.geometry.name
+    endpoints = _collect_linestring_endpoints(pipes)
+    split_points: dict[object, list[Point]] = {}
+    endpoint_tolerance = max(tolerance_m, 1e-8)
+
+    for source_index, _, endpoint in endpoints:
+        for target_index, target_geom in pipes[geometry_column].items():
+            if source_index == target_index or not isinstance(target_geom, LineString):
+                continue
+            projected_distance = target_geom.project(endpoint)
+            if _is_at_line_endpoint(target_geom, projected_distance, 1e-8):
+                continue
+            projected_point = target_geom.interpolate(projected_distance)
+            if endpoint.distance(projected_point) <= endpoint_tolerance:
+                split_points.setdefault(target_index, []).append(projected_point)
+
+    return split_points
+
+
+def _merge_split_points(
+    *split_point_groups: dict[object, list[Point]],
+) -> dict[object, list[Point]]:
+    merged: dict[object, list[Point]] = {}
+    for split_points in split_point_groups:
+        for row_index, points in split_points.items():
+            merged.setdefault(row_index, []).extend(points)
+    return merged
 
 
 def _split_pipes_at_points(
