@@ -7,6 +7,7 @@ The project starts from geospatial inputs such as pipe layers, DEM/DTM rasters a
 ## Main goals
 
 - Read pipes from Shapefile, GeoPackage or GeoJSON layers.
+- Combine several pipe layers into one internal network while preserving source traceability.
 - Validate and optionally correct network topology.
 - Detect pipe endpoints, intersections and hydraulic junctions.
 - Assign deterministic IDs to nodes and links.
@@ -53,13 +54,23 @@ ruff format .
 mypy src
 ```
 
-## First planned workflow
+## First validation workflow
 
 ```bash
 python -m epanet_tools.workflows.validate_network --config config/validate_network_example.yml
 ```
 
-The initial workflow will read a pipe layer, validate CRS/geometries/endpoints/intersections and export a QA report without modifying source data.
+The initial workflow reads one or several pipe layers, validates CRS/geometries and exports QA outputs without modifying source data.
+
+Generated outputs:
+
+```text
+outputs/<run_name>/report/<run_name>_validation.json
+outputs/<run_name>/report/<run_name>_validation.csv
+outputs/<run_name>/gis/<run_name>_network.gpkg
+```
+
+Open the GeoPackage in QGIS and load the `pipes_combined` layer to inspect the network interpreted by the software. The layer includes traceability fields such as `_source_path`, `_source_layer` and `_source_index`.
 
 ## Documentation
 
