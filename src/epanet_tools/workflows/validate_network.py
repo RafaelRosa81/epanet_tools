@@ -12,7 +12,11 @@ from epanet_tools.hydraulic.attributes import HydraulicAttributeReport, apply_hy
 from epanet_tools.hydraulic.validation import BasicModelValidationReport, validate_basic_epanet_model
 from epanet_tools.io.gis_outputs import write_combined_pipe_layer, write_working_geopackage
 from epanet_tools.io.inp import write_basic_inp
-from epanet_tools.io.reports import write_basic_model_validation_report, write_validation_report
+from epanet_tools.io.reports import (
+    write_basic_model_validation_report,
+    write_summary_report,
+    write_validation_report,
+)
 from epanet_tools.io.vector import read_pipe_layers
 from epanet_tools.terrain.elevation import ElevationSamplingReport, sample_junction_elevations
 from epanet_tools.topology.cleaning import CleaningReport, normalize_pipe_topology
@@ -84,6 +88,16 @@ def validate_network(config_path: str | Path) -> ValidationWorkflowResult:
     basic_model_report = validate_basic_epanet_model(junctions, pipes_clean)
 
     report_paths = write_validation_report(report, outdir=outdir, name=name)
+    report_paths["cleaning_csv"] = write_summary_report(cleaning_report, outdir, name, "cleaning")
+    report_paths["connectivity_csv"] = write_summary_report(connectivity_report, outdir, name, "connectivity")
+    report_paths["elevation_csv"] = write_summary_report(elevation_report, outdir, name, "elevation")
+    report_paths["hydraulics_csv"] = write_summary_report(hydraulic_report, outdir, name, "hydraulics")
+    report_paths["topology_review_csv"] = write_summary_report(
+        topology_review_report,
+        outdir,
+        name,
+        "topology_review",
+    )
     report_paths["basic_model_validation_csv"] = write_basic_model_validation_report(
         basic_model_report,
         outdir=outdir,
@@ -97,6 +111,8 @@ def validate_network(config_path: str | Path) -> ValidationWorkflowResult:
         pipes_clean_auto=pipes_clean_auto,
         pipes_clean=pipes_clean,
         junctions=junctions,
+        topology_errors=topology_errors,
+        topology_report=topology_report,
     )
     inp_path = write_basic_inp(
         junctions=junctions,
