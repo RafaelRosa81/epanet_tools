@@ -10,6 +10,7 @@ import geopandas as gpd
 
 WORKING_GPKG_LAYERS = (
     "pipes_raw",
+    "pipes_clean_auto",
     "pipes_clean",
     "junctions",
     "reservoirs",
@@ -45,9 +46,14 @@ def write_working_geopackage(
     pipes_raw: gpd.GeoDataFrame,
     outdir: str | Path,
     name: str,
-    pipes_clean: gpd.GeoDataFrame | None = None,
+    pipes_clean_auto: gpd.GeoDataFrame | None = None,
 ) -> Path:
-    """Write the standard working GeoPackage used by downstream EPANET steps."""
+    """Write the standard working GeoPackage used by downstream EPANET steps.
+
+    `pipes_clean_auto` stores the automatic normalization result. `pipes_clean`
+    is initialized as an editable copy of `pipes_clean_auto` so the user can make
+    manual corrections in QGIS before junction/connectivity generation.
+    """
     gis_dir = Path(outdir) / "gis"
     gis_dir.mkdir(parents=True, exist_ok=True)
 
@@ -55,12 +61,13 @@ def write_working_geopackage(
     export_raw = _sanitize_for_geopackage(pipes_raw)
     export_raw.to_file(output_path, layer="pipes_raw", driver="GPKG")
 
-    if pipes_clean is not None:
-        export_clean = _sanitize_for_geopackage(pipes_clean)
-        export_clean.to_file(output_path, layer="pipes_clean", driver="GPKG")
+    if pipes_clean_auto is not None:
+        export_clean_auto = _sanitize_for_geopackage(pipes_clean_auto)
+        export_clean_auto.to_file(output_path, layer="pipes_clean_auto", driver="GPKG")
+        export_clean_auto.to_file(output_path, layer="pipes_clean", driver="GPKG")
         empty_line_layers: set[str] = set()
     else:
-        empty_line_layers = {"pipes_clean"}
+        empty_line_layers = {"pipes_clean_auto", "pipes_clean"}
 
     layer_geometry_types = {
         "junctions": "Point",
