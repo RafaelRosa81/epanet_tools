@@ -57,6 +57,60 @@ For Excel exports:
 pip install -e ".[excel]"
 ```
 
+## Irrigation demand patterns
+
+`epanet_tools.irrigation_scheduler` generates binary EPANET demand patterns for sectorized irrigation models. Each sector receives one pattern, and all nodes belonging to that sector can share it.
+
+```python
+from epanet_tools.irrigation_scheduler import (
+    EXAMPLE_SECTORS,
+    generate_irrigation_patterns,
+    write_patterns_section,
+)
+
+result = generate_irrigation_patterns(
+    EXAMPLE_SECTORS,
+    start_time="06:00",
+    pattern_step_minutes=5,
+    cycle_duration_hours=24,
+    tank_usable_volume_m3=4.24,
+    refill_flow_m3h=3.6,
+    min_tank_volume_m3=1.0,
+)
+
+patterns = result["patterns"]
+schedule = result["schedule"]
+tank_balance = result["tank_balance"]
+node_to_pattern = result["node_to_pattern"]
+
+write_patterns_section(patterns, "patterns_section.inp")
+```
+
+For a 24 h cycle and 5 min pattern step, each pattern contains 288 binary values. The scheduler simulates tank storage, public-network refill and sector demand, inserting recovery pauses when the next active step would drop the tank below the minimum volume.
+
+The returned dictionary contains:
+
+```python
+{
+    "patterns": {"sector_1": [0, 1, 1, 0, ...]},
+    "schedule": schedule_dataframe,
+    "tank_balance": tank_balance_dataframe,
+    "node_to_pattern": {"J000024": "sector_1"},
+}
+```
+
+The helper `insert_patterns_into_inp()` can replace the `[PATTERNS]` section of an existing `.inp` file and assign pattern IDs to matching nodes in `[DEMANDS]` or `[JUNCTIONS]`.
+
+Important modelling note: these patterns control nodal demand multipliers. They do not physically open or close pipes, valves or solenoid valves. To represent real electromechanical valves, use EPANET links such as valves or controlled pipes. This pattern-based strategy is appropriate for hydraulic planning by irrigation sector.
+
+Run the complete example with:
+
+```bash
+python examples/example_irrigation_scheduler.py
+```
+
+The example writes the schedule, tank balance, `[PATTERNS]` text and optional plots under `outputs/irrigation_scheduler`.
+
 ## EPANET result postprocessing
 
 `epanet_postprocess.read_rpt()` recognizes the standard EPANET 2.x blocks named `Node Results at <time> Hrs:` and `Link Results at <time> Hrs:`, including page continuations. It returns normalized `pandas` tables:
