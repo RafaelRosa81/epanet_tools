@@ -21,7 +21,7 @@ ID                     CMH       m/s      m/km
 P000001               1.50      0.20      1.00      Open
 Link Results at 0:00 Hrs: (continued)
 ----------------------------------------------------------------------
-P000002              -1.50      0.20      1.00      Closed
+123                  -1.50      0.20      1.00      Closed
 Node Results at 1:00 Hrs:
 ----------------------------------------------------------------------
 J000001               0.00    100.00     11.00      0.00
@@ -41,5 +41,7 @@ def test_read_rpt_parses_time_blocks_and_continuations(tmp_path: Path) -> None:
     assert len(results["links"]) == 3
     assert results["metadata"]["node_time_steps"] == 2
     assert results["metadata"]["link_time_steps"] == 2
+    assert results["metadata"]["link_count"] == 2
+    assert results["links"].loc[1, "link_id"] == "123"
     assert results["links"].loc[1, "flow"] == -1.5
     assert results["links"].loc[1, "status"] == "Closed"
