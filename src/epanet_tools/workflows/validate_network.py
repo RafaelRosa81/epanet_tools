@@ -11,7 +11,7 @@ from epanet_tools.config import load_yaml_config, require_mapping
 from epanet_tools.io.gis_outputs import write_combined_pipe_layer, write_working_geopackage
 from epanet_tools.io.reports import write_validation_report
 from epanet_tools.io.vector import read_pipe_layers
-from epanet_tools.topology.cleaning import CleaningReport, snap_pipe_endpoints
+from epanet_tools.topology.cleaning import CleaningReport, normalize_pipe_topology
 from epanet_tools.topology.validation import PipeValidationOptions, validate_pipe_layer
 
 
@@ -48,7 +48,7 @@ def validate_network(config_path: str | Path) -> ValidationWorkflowResult:
     report = validate_pipe_layer(pipes, options)
 
     snap_tolerance_m = _snap_tolerance_m(config)
-    pipes_clean, cleaning_report = snap_pipe_endpoints(pipes, tolerance_m=snap_tolerance_m)
+    pipes_clean, cleaning_report = normalize_pipe_topology(pipes, tolerance_m=snap_tolerance_m)
 
     report_paths = write_validation_report(report, outdir=outdir, name=name)
     combined_path = write_combined_pipe_layer(pipes, outdir=outdir, name=name)
@@ -125,6 +125,11 @@ def main() -> None:
         "cleaning": {
             "snapped_endpoint_count": result.cleaning_report.snapped_endpoint_count,
             "snap_group_count": result.cleaning_report.snap_group_count,
+            "endpoint_to_segment_snap_count": (
+                result.cleaning_report.endpoint_to_segment_snap_count
+            ),
+            "split_pipe_count": result.cleaning_report.split_pipe_count,
+            "output_feature_count": result.cleaning_report.output_feature_count,
         },
         "report_paths": report_paths,
         "gis_paths": gis_paths,
