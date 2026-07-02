@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from epanet_tools.config import load_yaml_config, require_mapping
-from epanet_tools.io.gis_outputs import write_combined_pipe_layer
+from epanet_tools.io.gis_outputs import write_combined_pipe_layer, write_working_geopackage
 from epanet_tools.io.reports import write_validation_report
 from epanet_tools.io.vector import read_pipe_layers
 from epanet_tools.topology.validation import PipeValidationOptions, validate_pipe_layer
@@ -48,6 +48,7 @@ def validate_network(config_path: str | Path) -> ValidationWorkflowResult:
     report = validate_pipe_layer(pipes, options)
     report_paths = write_validation_report(report, outdir=outdir, name=name)
     combined_path = write_combined_pipe_layer(pipes, outdir=outdir, name=name)
+    working_path = write_working_geopackage(pipes, outdir=outdir, name=name)
 
     return ValidationWorkflowResult(
         status="failed" if report.has_errors else "ok",
@@ -55,7 +56,7 @@ def validate_network(config_path: str | Path) -> ValidationWorkflowResult:
         has_errors=report.has_errors,
         issue_counts=report.count_by_severity(),
         report_paths=report_paths,
-        gis_paths={"combined_pipes": combined_path},
+        gis_paths={"combined_pipes": combined_path, "working_geopackage": working_path},
     )
 
 
