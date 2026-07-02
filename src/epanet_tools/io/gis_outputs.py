@@ -47,13 +47,10 @@ def write_working_geopackage(
     outdir: str | Path,
     name: str,
     pipes_clean_auto: gpd.GeoDataFrame | None = None,
+    pipes_clean: gpd.GeoDataFrame | None = None,
+    junctions: gpd.GeoDataFrame | None = None,
 ) -> Path:
-    """Write the standard working GeoPackage used by downstream EPANET steps.
-
-    `pipes_clean_auto` stores the automatic normalization result. `pipes_clean`
-    is initialized as an editable copy of `pipes_clean_auto` so the user can make
-    manual corrections in QGIS before junction/connectivity generation.
-    """
+    """Write the standard working GeoPackage used by downstream EPANET steps."""
     gis_dir = Path(outdir) / "gis"
     gis_dir.mkdir(parents=True, exist_ok=True)
 
@@ -64,49 +61,46 @@ def write_working_geopackage(
     if pipes_clean_auto is not None:
         export_clean_auto = _sanitize_for_geopackage(pipes_clean_auto)
         export_clean_auto.to_file(output_path, layer="pipes_clean_auto", driver="GPKG")
-        export_clean_auto.to_file(output_path, layer="pipes_clean", driver="GPKG")
+        editable_clean = pipes_clean if pipes_clean is not None else pipes_clean_auto
+        export_clean = _sanitize_for_geopackage(editable_clean)
+        export_clean.to_file(output_path, layer="pipes_clean", driver="GPKG")
         empty_line_layers: set[str] = set()
     else:
         empty_line_layers = {"pipes_clean_auto", "pipes_clean"}
 
+    if junctions is not None:
+        export_junctions = _sanitize_for_geopackage(junctions)
+        export_junctions.to_file(output_path, layer="junctions", driver="GPKG")
+        empty_point_layers = {"reservoirs", "tanks", "pumps", "valves", "demands", "topology_errors", "topology_report"}
+    else:
+        empty_point_layers = {
+            "junctions",
+            "reservoirs",
+            "tanks",
+            "pumps",
+            "valves",
+            "demands",
+            "topology_errors",
+            "topology_report",
+        }
+
     layer_geometry_types = {
-        "junctions": "Point",
-        "reservoirs": "Point",
-        "tanks": "Point",
-        "pumps": "Point",
-        "valves": "Point",
-        "demands": "Point",
         "sectors": "Polygon",
-        "topology_errors": "Point",
-        "topology_report": "Point",
     }
 
     crs_wkt = pipes_raw.crs.to_wkt() if pipes_raw.crs is not None else None
     for layer_name in empty_line_layers:
-        _create_empty_layer(
-            output_path=output_path,
-            layer_name=layer_name,
-            geometry_type="LineString",
-            crs_wkt=crs_wkt,
-        )
+        _create_empty_layer(output_path, layer_name, "LineString", crs_wkt)
+    for layer_name in empty_point_layers:
+        _create_empty_layer(output_path, layer_name, "Point", crs_wkt)
     for layer_name, geometry_type in layer_geometry_types.items():
-        _create_empty_layer(
-            output_path=output_path,
-            layer_name=layer_name,
-            geometry_type=geometry_type,
-            crs_wkt=crs_wkt,
-        )
+        _create_empty_layer(output_path, layer_name, geometry_type, crs_wkt)
 
     return output_path
 
 
 def _sanitize_for_geopackage(data: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
-    """Return a copy with attribute names safe for GeoPackage export.
-
-    Some source layers contain fields such as `geom`, which conflicts with the
-    geometry column name used internally by the GeoPackage driver. The original
-    input data is preserved; only the exported copy is renamed.
-    """
+    """Return a copy with attribute names safe for GeoPackage export."""
     sanitized = data.copy()
     geometry_column = sanitized.geometry.name
     rename_map: dict[str, str] = {}
