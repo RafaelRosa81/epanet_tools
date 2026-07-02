@@ -20,20 +20,27 @@ The project starts from geospatial inputs such as pipe layers, DEM/DTM rasters a
 
 ## Repository status
 
-The current implementation validates GIS pipe inputs, writes a combined network layer and generates a first `pipes_clean` layer by snapping near pipe endpoints.
+The current implementation validates GIS pipe inputs, writes a combined network layer and generates a first `pipes_clean` layer by snapping near pipe endpoints. It also includes an initial `epanet_postprocess` package for reading standard EPANET 2.x `.rpt` time-series reports, graphing results, generating summaries, exporting tables and running hydraulic diagnostics.
 
 ## Package layout
 
 ```text
-src/epanet_tools/
-├── io/
-├── topology/
-├── terrain/
-├── hydraulic/
-├── editing/
-├── analysis/
-├── visualization/
-└── workflows/
+src/
+├── epanet_tools/
+│   ├── io/
+│   ├── topology/
+│   ├── terrain/
+│   ├── hydraulic/
+│   ├── editing/
+│   ├── analysis/
+│   ├── visualization/
+│   └── workflows/
+└── epanet_postprocess/
+    ├── reader.py
+    ├── plots.py
+    ├── summary.py
+    ├── diagnostics.py
+    └── export.py
 ```
 
 ## Installation
@@ -43,6 +50,46 @@ conda env create -f environment.yml
 conda activate epanet_tools
 pip install -e .
 ```
+
+For Excel exports:
+
+```bash
+pip install -e ".[excel]"
+```
+
+## EPANET result postprocessing
+
+`epanet_postprocess.read_rpt()` recognizes the standard EPANET 2.x blocks named `Node Results at <time> Hrs:` and `Link Results at <time> Hrs:`, including page continuations. It returns normalized `pandas` tables:
+
+```python
+from epanet_postprocess.reader import read_rpt
+from epanet_postprocess.plots import plot_link_flows
+from epanet_postprocess.diagnostics import check_low_pressures
+
+results = read_rpt("palo_alto_secundarias.rpt")
+
+plot_link_flows(
+    results,
+    links=["P000008", "P000009", "P000016"],
+    output="outputs/flows_selected_links.png",
+)
+
+print(check_low_pressures(results, min_pressure=10.0))
+```
+
+The returned structure is:
+
+```python
+{
+    "nodes": nodes_dataframe,
+    "links": links_dataframe,
+    "metadata": metadata_dictionary,
+}
+```
+
+The reader preserves the units reported by EPANET. Confirm the unit system from the source report before setting hydraulic thresholds. Negative flow records are retained because they usually describe flow direction relative to the link orientation, rather than an error.
+
+See `examples/example_postprocess.py` for the complete workflow, including charts, diagnostic tables and Excel export.
 
 ## Development checks
 
