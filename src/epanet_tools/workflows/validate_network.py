@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from epanet_tools.config import load_yaml_config, require_mapping
+from epanet_tools.io.gis_outputs import write_combined_pipe_layer
 from epanet_tools.io.reports import write_validation_report
 from epanet_tools.io.vector import read_pipe_layers
 from epanet_tools.topology.validation import PipeValidationOptions, validate_pipe_layer
@@ -22,6 +23,7 @@ class ValidationWorkflowResult:
     has_errors: bool
     issue_counts: dict[str, int]
     report_paths: dict[str, Path]
+    gis_paths: dict[str, Path]
 
 
 def validate_network(config_path: str | Path) -> ValidationWorkflowResult:
@@ -45,6 +47,7 @@ def validate_network(config_path: str | Path) -> ValidationWorkflowResult:
     )
     report = validate_pipe_layer(pipes, options)
     report_paths = write_validation_report(report, outdir=outdir, name=name)
+    combined_path = write_combined_pipe_layer(pipes, outdir=outdir, name=name)
 
     return ValidationWorkflowResult(
         status="failed" if report.has_errors else "ok",
@@ -52,6 +55,7 @@ def validate_network(config_path: str | Path) -> ValidationWorkflowResult:
         has_errors=report.has_errors,
         issue_counts=report.count_by_severity(),
         report_paths=report_paths,
+        gis_paths={"combined_pipes": combined_path},
     )
 
 
@@ -74,12 +78,14 @@ def main() -> None:
     args = parser.parse_args()
     result = validate_network(args.config)
     report_paths = {key: str(value) for key, value in result.report_paths.items()}
+    gis_paths = {key: str(value) for key, value in result.gis_paths.items()}
     output = {
         "status": result.status,
         "feature_count": result.feature_count,
         "has_errors": result.has_errors,
         "issue_counts": result.issue_counts,
         "report_paths": report_paths,
+        "gis_paths": gis_paths,
     }
     print(output)
 
