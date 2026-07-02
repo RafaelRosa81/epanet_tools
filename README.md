@@ -68,9 +68,28 @@ Generated outputs:
 outputs/<run_name>/report/<run_name>_validation.json
 outputs/<run_name>/report/<run_name>_validation.csv
 outputs/<run_name>/gis/<run_name>_network.gpkg
+outputs/<run_name>/gis/<run_name>_working.gpkg
 ```
 
-Open the GeoPackage in QGIS and load the `pipes_combined` layer to inspect the network interpreted by the software. The layer includes traceability fields such as `_source_path`, `_source_layer` and `_source_index`.
+Open `<run_name>_network.gpkg` in QGIS and load `pipes_combined` to inspect the network interpreted by the software.
+
+Open `<run_name>_working.gpkg` to inspect the standard working structure for the EPANET workflow:
+
+```text
+pipes_raw
+pipes_clean
+junctions
+reservoirs
+tanks
+pumps
+valves
+demands
+sectors
+topology_errors
+topology_report
+```
+
+At this stage `pipes_raw` is populated from the combined source layers; the other layers are empty placeholders for later processing steps.
 
 ## Documentation
 
