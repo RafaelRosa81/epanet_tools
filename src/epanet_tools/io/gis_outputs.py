@@ -12,6 +12,7 @@ WORKING_GPKG_LAYERS = (
     "pipes_raw",
     "pipes_clean_auto",
     "pipes_clean",
+    "nodes",
     "junctions",
     "reservoirs",
     "tanks",
@@ -46,7 +47,10 @@ def write_working_geopackage(
     name: str,
     pipes_clean_auto: gpd.GeoDataFrame | None = None,
     pipes_clean: gpd.GeoDataFrame | None = None,
+    nodes: gpd.GeoDataFrame | None = None,
     junctions: gpd.GeoDataFrame | None = None,
+    reservoirs: gpd.GeoDataFrame | None = None,
+    tanks: gpd.GeoDataFrame | None = None,
     topology_errors: gpd.GeoDataFrame | None = None,
     topology_report: gpd.GeoDataFrame | None = None,
 ) -> Path:
@@ -57,23 +61,25 @@ def write_working_geopackage(
     _sanitize_for_geopackage(pipes_raw).to_file(output_path, layer="pipes_raw", driver="GPKG")
 
     if pipes_clean_auto is not None:
-        _sanitize_for_geopackage(pipes_clean_auto).to_file(
-            output_path, layer="pipes_clean_auto", driver="GPKG"
-        )
+        _sanitize_for_geopackage(pipes_clean_auto).to_file(output_path, layer="pipes_clean_auto", driver="GPKG")
         editable_clean = pipes_clean if pipes_clean is not None else pipes_clean_auto
-        _sanitize_for_geopackage(editable_clean).to_file(
-            output_path, layer="pipes_clean", driver="GPKG"
-        )
+        _sanitize_for_geopackage(editable_clean).to_file(output_path, layer="pipes_clean", driver="GPKG")
         empty_line_layers: set[str] = set()
     else:
         empty_line_layers = {"pipes_clean_auto", "pipes_clean"}
 
     point_layers = {
+        "nodes": nodes,
         "junctions": junctions,
+        "reservoirs": reservoirs,
+        "tanks": tanks,
         "topology_errors": topology_errors,
         "topology_report": topology_report,
     }
-    empty_point_layers = {"junctions", "reservoirs", "tanks", "pumps", "valves", "demands", "topology_errors", "topology_report"}
+    empty_point_layers = {
+        "nodes", "junctions", "reservoirs", "tanks", "pumps", "valves", "demands",
+        "topology_errors", "topology_report",
+    }
     for layer_name, data in point_layers.items():
         if data is not None:
             _sanitize_for_geopackage(data).to_file(output_path, layer=layer_name, driver="GPKG")
