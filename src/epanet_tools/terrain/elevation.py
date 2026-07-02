@@ -4,10 +4,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import geopandas as gpd
 import rasterio
-from pyproj import Transformer
+from pyproj import CRS, Transformer
+from pyproj.exceptions import ProjError
+
+from epanet_tools.exceptions import ConfigurationError
 
 
 @dataclass(frozen=True)
@@ -24,6 +28,7 @@ def sample_junction_elevations(
     junctions: gpd.GeoDataFrame,
     dem_path: str | Path | None,
     elevation_field: str = "elevation_m",
+    dem_crs_override: str | int | None = None,
 ) -> tuple[gpd.GeoDataFrame, ElevationSamplingReport]:
     """Sample DEM elevation at each junction point.
 
@@ -49,7 +54,8 @@ def sample_junction_elevations(
         raise FileNotFoundError(msg)
 
     with rasterio.open(raster_path) as dataset:
-        transformer = _coordinate_transformer(sampled, dataset.crs)
+        dem_crs = _resolve_dem_crs(dataset.crs, dem_crs_override)
+        transformer = _coordinate_transformer(sampled, dem_crs)
         coords = [_point_coordinate(point, transformer) for point in sampled.geometry]
         values = list(dataset.sample(coords, indexes=1, masked=True))
         elevations: list[float | None] = []
@@ -70,18 +76,43 @@ def sample_junction_elevations(
             node_count=len(sampled),
             sampled_count=sampled_count,
             missing_count=len(sampled) - sampled_count,
-            dem_crs=str(dataset.crs) if dataset.crs is not None else None,
+            dem_crs=dem_crs.to_string() if dem_crs is not None else None,
         )
         return sampled, report
 
 
+def _resolve_dem_crs(dataset_crs: Any, dem_crs_override: str | int | None) -> CRS | None:
+    if dem_crs_override not in (None, ""):
+        return CRS.from_user_input(dem_crs_override)
+    if dataset_crs is None:
+        return None
+    try:
+        return CRS.from_user_input(dataset_crs)
+    except ProjError as exc:
+        msg = (
+            "DEM CRS could not be interpreted. Define inputs.dem_crs explicitly "
+            "in the YAML, for example dem_crs: EPSG:32719."
+        )
+        raise ConfigurationError(msg) from exc
+
+
 def _coordinate_transformer(
     junctions: gpd.GeoDataFrame,
-    dem_crs: object,
+    dem_crs: CRS | None,
 ) -> Transformer | None:
-    if junctions.crs is None or dem_crs is None or junctions.crs == dem_crs:
+    if junctions.crs is None or dem_crs is None:
         return None
-    return Transformer.from_crs(junctions.crs, dem_crs, always_xy=True)
+    junction_crs = CRS.from_user_input(junctions.crs)
+    if junction_crs == dem_crs:
+        return None
+    try:
+        return Transformer.from_crs(junction_crs, dem_crs, always_xy=True)
+    except ProjError as exc:
+        msg = (
+            "Could not transform junction coordinates to DEM CRS. If the DEM CRS "
+            "is wrong or ambiguous, define inputs.dem_crs explicitly in the YAML."
+        )
+        raise ConfigurationError(msg) from exc
 
 
 def _point_coordinate(point: object, transformer: Transformer | None) -> tuple[float, float]:
