@@ -34,8 +34,9 @@ def validate_network(config_path: str | Path) -> ValidationWorkflowResult:
 
     name = str(config.get("name", "epanet_model"))
     outdir = Path(str(config.get("outdir", "outputs")))
+    working_crs = _working_crs(config)
 
-    pipes = read_pipe_layers(pipe_inputs)
+    pipes = read_pipe_layers(pipe_inputs, working_crs=working_crs)
 
     topology_config = config.get("topology", {})
     if not isinstance(topology_config, dict):
@@ -73,6 +74,14 @@ def _pipe_inputs(inputs: dict[str, Any]) -> list[dict[str, Any]]:
             msg = "Each pipe input must be a mapping containing at least a path."
             raise ValueError(msg)
     return pipes
+
+
+def _working_crs(config: dict[str, Any]) -> str | None:
+    spatial = config.get("spatial", {})
+    if not isinstance(spatial, dict):
+        return None
+    value = spatial.get("working_crs")
+    return str(value) if value is not None else None
 
 
 def main() -> None:
