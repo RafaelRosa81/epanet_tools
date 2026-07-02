@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import fiona
 import geopandas as gpd
-import pandas as pd
 
 
 WORKING_GPKG_LAYERS = (
@@ -55,64 +55,53 @@ def write_working_geopackage(
     output_path = gis_dir / f"{name}_working.gpkg"
     pipes_raw.to_file(output_path, layer="pipes_raw", driver="GPKG")
 
-    line_layers = {"pipes_clean"}
-    point_layers = {"junctions", "reservoirs", "tanks", "pumps", "valves", "demands"}
-    polygon_layers = {"sectors"}
-    table_layers = {"topology_report"}
+    layer_geometry_types = {
+        "pipes_clean": "LineString",
+        "junctions": "Point",
+        "reservoirs": "Point",
+        "tanks": "Point",
+        "pumps": "Point",
+        "valves": "Point",
+        "demands": "Point",
+        "sectors": "Polygon",
+        "topology_errors": "Point",
+        "topology_report": "Point",
+    }
 
-    for layer_name in WORKING_GPKG_LAYERS:
-        if layer_name == "pipes_raw":
-            continue
-        if layer_name in line_layers:
-            _empty_geodataframe(pipes_raw.crs, "LineString").to_file(
-                output_path,
-                layer=layer_name,
-                driver="GPKG",
-            )
-        elif layer_name in point_layers:
-            _empty_geodataframe(pipes_raw.crs, "Point").to_file(
-                output_path,
-                layer=layer_name,
-                driver="GPKG",
-            )
-        elif layer_name in polygon_layers:
-            _empty_geodataframe(pipes_raw.crs, "Polygon").to_file(
-                output_path,
-                layer=layer_name,
-                driver="GPKG",
-            )
-        elif layer_name == "topology_errors":
-            _empty_geodataframe(pipes_raw.crs, "Point").to_file(
-                output_path,
-                layer=layer_name,
-                driver="GPKG",
-            )
-        elif layer_name in table_layers:
-            _empty_table().to_file(output_path, layer=layer_name, driver="GPKG")
+    crs_wkt = pipes_raw.crs.to_wkt() if pipes_raw.crs is not None else None
+    for layer_name, geometry_type in layer_geometry_types.items():
+        _create_empty_layer(
+            output_path=output_path,
+            layer_name=layer_name,
+            geometry_type=geometry_type,
+            crs_wkt=crs_wkt,
+        )
 
     return output_path
 
 
-def _empty_geodataframe(crs: object, geometry_type: str) -> gpd.GeoDataFrame:
-    return gpd.GeoDataFrame(
-        {
-            "id": pd.Series(dtype="str"),
-            "status": pd.Series(dtype="str"),
-            "notes": pd.Series(dtype="str"),
+def _create_empty_layer(
+    output_path: Path,
+    layer_name: str,
+    geometry_type: str,
+    crs_wkt: str | None,
+) -> None:
+    schema = {
+        "geometry": geometry_type,
+        "properties": {
+            "id": "str",
+            "status": "str",
+            "code": "str",
+            "message": "str",
+            "notes": "str",
         },
-        geometry=gpd.GeoSeries([], crs=crs),
-        crs=crs,
-    ).set_geometry("geometry")
-
-
-def _empty_table() -> gpd.GeoDataFrame:
-    return gpd.GeoDataFrame(
-        {
-            "issue_id": pd.Series(dtype="str"),
-            "severity": pd.Series(dtype="str"),
-            "code": pd.Series(dtype="str"),
-            "message": pd.Series(dtype="str"),
-            "element_id": pd.Series(dtype="str"),
-        },
-        geometry=gpd.GeoSeries([], crs=None),
-    )
+    }
+    with fiona.open(
+        output_path,
+        mode="w",
+        driver="GPKG",
+        layer=layer_name,
+        schema=schema,
+        crs_wkt=crs_wkt,
+    ):
+        pass
