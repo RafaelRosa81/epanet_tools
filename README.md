@@ -8,6 +8,7 @@ The project starts from geospatial inputs such as pipe layers, DEM/DTM rasters a
 
 - Read pipes from Shapefile, GeoPackage or GeoJSON layers.
 - Combine several pipe layers into one internal network while preserving source traceability.
+- Reproject source layers in memory to an explicit projected working CRS.
 - Validate and optionally correct network topology.
 - Detect pipe endpoints, intersections and hydraulic junctions.
 - Assign deterministic IDs to nodes and links.
@@ -60,7 +61,9 @@ mypy src
 python -m epanet_tools.workflows.validate_network --config config/validate_network_example.yml
 ```
 
-The initial workflow reads one or several pipe layers, validates CRS/geometries and exports QA outputs without modifying source data.
+The initial workflow reads one or several pipe layers, reprojects them in memory to `spatial.working_crs` when that value is provided, validates CRS/geometries and exports QA outputs without modifying source data.
+
+The working CRS must be projected. All later length, snapping and topology operations are expected to use this CRS.
 
 Generated outputs:
 
