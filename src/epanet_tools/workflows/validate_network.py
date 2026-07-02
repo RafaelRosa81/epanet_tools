@@ -10,7 +10,7 @@ from typing import Any
 from epanet_tools.config import load_yaml_config, require_mapping
 from epanet_tools.io.reports import write_validation_report
 from epanet_tools.io.vector import read_pipe_layer
-from epanet_tools.topology.validation import PipeValidationOptions, PipeValidationReport, validate_pipe_layer
+from epanet_tools.topology.validation import PipeValidationOptions, validate_pipe_layer
 
 
 @dataclass(frozen=True)
@@ -72,8 +72,14 @@ def _first_pipe_input(inputs: dict[str, Any]) -> dict[str, Any]:
 
 def main() -> None:
     """Command-line entrypoint for network validation."""
-    parser = argparse.ArgumentParser(description="Validate a GIS pipe network for EPANET export.")
-    parser.add_argument("--config", required=True, help="Path to the workflow YAML configuration.")
+    parser = argparse.ArgumentParser(
+        description="Validate a GIS pipe network for EPANET export."
+    )
+    parser.add_argument(
+        "--config",
+        required=True,
+        help="Path to the workflow YAML configuration.",
+    )
     args = parser.parse_args()
     result = validate_network(args.config)
     print(
