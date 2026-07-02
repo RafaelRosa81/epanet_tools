@@ -37,6 +37,7 @@ def write_combined_pipe_layer(
     gis_dir.mkdir(parents=True, exist_ok=True)
 
     output_path = gis_dir / f"{name}_network.gpkg"
+    _remove_existing_file(output_path)
     export_pipes = _sanitize_for_geopackage(pipes)
     export_pipes.to_file(output_path, layer=layer_name, driver="GPKG")
     return output_path
@@ -55,6 +56,7 @@ def write_working_geopackage(
     gis_dir.mkdir(parents=True, exist_ok=True)
 
     output_path = gis_dir / f"{name}_working.gpkg"
+    _remove_existing_file(output_path)
     export_raw = _sanitize_for_geopackage(pipes_raw)
     export_raw.to_file(output_path, layer="pipes_raw", driver="GPKG")
 
@@ -71,7 +73,15 @@ def write_working_geopackage(
     if junctions is not None:
         export_junctions = _sanitize_for_geopackage(junctions)
         export_junctions.to_file(output_path, layer="junctions", driver="GPKG")
-        empty_point_layers = {"reservoirs", "tanks", "pumps", "valves", "demands", "topology_errors", "topology_report"}
+        empty_point_layers = {
+            "reservoirs",
+            "tanks",
+            "pumps",
+            "valves",
+            "demands",
+            "topology_errors",
+            "topology_report",
+        }
     else:
         empty_point_layers = {
             "junctions",
@@ -126,6 +136,11 @@ def _unique_column_name(base_name: str, existing_names: set[str]) -> str:
         candidate = f"{base_name}_{counter}"
         counter += 1
     return candidate
+
+
+def _remove_existing_file(path: Path) -> None:
+    if path.exists():
+        path.unlink()
 
 
 def _create_empty_layer(
