@@ -27,12 +27,7 @@ def normalize_pipe_topology(
     pipes: gpd.GeoDataFrame,
     tolerance_m: float,
 ) -> tuple[gpd.GeoDataFrame, CleaningReport]:
-    """Normalize pipe topology using hydraulic endpoint-connection rules.
-
-    Pipes are split only where a pipe endpoint connects to another pipe. Pure
-    interior-interior line crossings are ignored because they may represent pipes
-    crossing in plan without hydraulic connection.
-    """
+    """Normalize pipe topology using hydraulic endpoint-connection rules."""
     endpoint_cleaned, endpoint_report = snap_pipe_endpoints(pipes, tolerance_m=tolerance_m)
     if tolerance_m <= 0:
         report = CleaningReport(
@@ -108,14 +103,20 @@ def _snap_endpoints_to_segments(
     endpoints = _collect_linestring_endpoints(cleaned)
     split_points: dict[object, list[Point]] = {}
     snap_count = 0
+    spatial_index = cleaned.sindex
 
     for row_index, endpoint_position, point in endpoints:
         best_target_index: object | None = None
         best_projected_point: Point | None = None
         best_distance = tolerance_m
 
-        for target_index, target_geom in cleaned[geometry_column].items():
-            if target_index == row_index or not isinstance(target_geom, LineString):
+        candidate_positions = spatial_index.query(point.buffer(tolerance_m), predicate="intersects")
+        for target_pos in candidate_positions:
+            target_index = cleaned.index[int(target_pos)]
+            if target_index == row_index:
+                continue
+            target_geom = cleaned.at[target_index, geometry_column]
+            if not isinstance(target_geom, LineString) or target_geom.is_empty:
                 continue
             projected_distance = target_geom.project(point)
             if _is_at_line_endpoint(target_geom, projected_distance, tolerance_m):
@@ -151,10 +152,16 @@ def _collect_endpoint_connection_split_points(
     endpoints = _collect_linestring_endpoints(pipes)
     split_points: dict[object, list[Point]] = {}
     endpoint_tolerance = max(tolerance_m, 1e-8)
+    spatial_index = pipes.sindex
 
     for source_index, _, endpoint in endpoints:
-        for target_index, target_geom in pipes[geometry_column].items():
-            if source_index == target_index or not isinstance(target_geom, LineString):
+        candidate_positions = spatial_index.query(endpoint.buffer(endpoint_tolerance), predicate="intersects")
+        for target_pos in candidate_positions:
+            target_index = pipes.index[int(target_pos)]
+            if source_index == target_index:
+                continue
+            target_geom = pipes.at[target_index, geometry_column]
+            if not isinstance(target_geom, LineString) or target_geom.is_empty:
                 continue
             projected_distance = target_geom.project(endpoint)
             if _is_at_line_endpoint(target_geom, projected_distance, 1e-8):
@@ -250,7 +257,7 @@ def _collect_linestring_endpoints(
     endpoints: list[tuple[object, str, Point]] = []
     geometry_column = pipes.geometry.name
     for idx, geom in pipes[geometry_column].items():
-        if isinstance(geom, LineString):
+        if isinstance(geom, LineString) and not geom.is_empty:
             coords = list(geom.coords)
             if len(coords) < 2:
                 continue
@@ -265,27 +272,42 @@ def _build_endpoint_groups(
     endpoints: list[tuple[object, str, Point]],
     tolerance_m: float,
 ) -> list[list[tuple[object, str, Point]]]:
-    groups: list[list[tuple[object, str, Point]]] = []
-    used: set[int] = set()
+    """Group nearby endpoints using a spatial index instead of all-pairs checks."""
+    if not endpoints:
+        return []
+    endpoint_gdf = gpd.GeoDataFrame(
+        {"endpoint_id": list(range(len(endpoints)))},
+        geometry=[record[2] for record in endpoints],
+    )
+    spatial_index = endpoint_gdf.sindex
+    parent = list(range(len(endpoints)))
 
-    for i, endpoint in enumerate(endpoints):
-        if i in used:
-            continue
-        group = [endpoint]
-        used.add(i)
-        changed = True
-        while changed:
-            changed = False
-            for j, candidate in enumerate(endpoints):
-                if j in used:
-                    continue
-                if any(candidate[2].distance(member[2]) <= tolerance_m for member in group):
-                    group.append(candidate)
-                    used.add(j)
-                    changed = True
-        if len(group) > 1:
-            groups.append(group)
-    return groups
+    def find(value: int) -> int:
+        while parent[value] != value:
+            parent[value] = parent[parent[value]]
+            value = parent[value]
+        return value
+
+    def union(left: int, right: int) -> None:
+        root_left = find(left)
+        root_right = find(right)
+        if root_left != root_right:
+            parent[root_right] = root_left
+
+    for i, (_, _, point) in enumerate(endpoints):
+        candidate_positions = spatial_index.query(point.buffer(tolerance_m), predicate="intersects")
+        for candidate_pos in candidate_positions:
+            j = int(candidate_pos)
+            if i >= j:
+                continue
+            if point.distance(endpoints[j][2]) <= tolerance_m:
+                union(i, j)
+
+    grouped_ids: dict[int, list[int]] = {}
+    for i in range(len(endpoints)):
+        grouped_ids.setdefault(find(i), []).append(i)
+
+    return [[endpoints[i] for i in ids] for ids in grouped_ids.values() if len(ids) > 1]
 
 
 def _endpoint_replacements(
@@ -316,7 +338,6 @@ def _replace_endpoint(geom: LineString, endpoint_position: str, replacement: Poi
 
 
 def _replacement_coordinate(current_coord: tuple[float, ...], replacement: Point) -> tuple[float, ...]:
-    """Create a replacement coordinate preserving extra dimensions such as Z."""
     if len(current_coord) <= 2:
         return (replacement.x, replacement.y)
     return (replacement.x, replacement.y, *current_coord[2:])
