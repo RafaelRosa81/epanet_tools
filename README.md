@@ -193,6 +193,8 @@ topology_report
 
 ## Documentation
 
+- [`docs/functionalities.md`](docs/functionalities.md) — detailed documentation of implemented modules, criteria, functions and examples.
+- [`docs/complete_pipeline.md`](docs/complete_pipeline.md) — complete workflow from GIS shapes to INP, irrigation patterns and EPANET result postprocessing.
 - [`docs/architecture.md`](docs/architecture.md)
 - [`docs/roadmap.md`](docs/roadmap.md)
 - [`docs/data_contract.md`](docs/data_contract.md)
