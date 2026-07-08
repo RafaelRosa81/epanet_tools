@@ -7,6 +7,24 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 
+def _simulation_time_axis(series: pd.Series) -> tuple[pd.Series, str]:
+    """Return x-axis values and label for a simulation time column.
+
+    EPANET reports are parsed as pandas Timedelta values. Matplotlib can plot
+    timedeltas directly, but it displays them as internal nanosecond values.
+    For hydraulic reports it is clearer to show elapsed simulation time in
+    hours.
+    """
+    if pd.api.types.is_timedelta64_dtype(series):
+        return series.dt.total_seconds() / 3600.0, "Simulation time [h]"
+
+    converted = pd.to_timedelta(series, errors="coerce")
+    if converted.notna().all():
+        return converted.dt.total_seconds() / 3600.0, "Simulation time [h]"
+
+    return series, "Simulation time"
+
+
 def _plot_timeseries(
     df: pd.DataFrame,
     id_column: str,
@@ -28,13 +46,18 @@ def _plot_timeseries(
     if data.empty:
         raise ValueError("There are no data to plot.")
 
-    fig, ax = plt.subplots(figsize=(10, 5))
+    data = data.sort_values([id_column, "time"])
+    data["_plot_time"], x_label = _simulation_time_axis(data["time"])
+
+    fig, ax = plt.subplots(figsize=(12, 5))
     for element_id, group in data.groupby(id_column, sort=True):
-        group = group.sort_values("time")
-        ax.plot(group["time"], group[variable], label=str(element_id))
+        group = group.sort_values("_plot_time")
+        ax.plot(group["_plot_time"], group[variable], label=str(element_id))
+
     ax.set_title(title)
-    ax.set_xlabel("Simulation time")
+    ax.set_xlabel(x_label)
     ax.set_ylabel(variable.replace("_", " ").title())
+    ax.set_xlim(data["_plot_time"].min(), data["_plot_time"].max())
     ax.grid(True, alpha=0.35)
     ax.legend(title=id_column, loc="best")
     fig.tight_layout()
