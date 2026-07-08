@@ -69,6 +69,12 @@ def _save_figure(fig, output: str | Path | None) -> None:
     fig.savefig(output_path, dpi=150, bbox_inches="tight")
 
 
+def _safe_filename(value: str) -> str:
+    """Return a file-system-safe name for an EPANET element identifier."""
+    safe = str(value).replace("/", "_").replace("\\", "_").replace(":", "_")
+    return safe.strip() or "unnamed"
+
+
 def _plot_timeseries(
     df: pd.DataFrame,
     id_column: str,
@@ -97,6 +103,46 @@ def _plot_timeseries(
             ax.legend(title=id_column, loc="center left", bbox_to_anchor=(1.01, 0.5))
         else:
             ax.legend(title=id_column, loc="best")
+
+    fig.tight_layout()
+    _save_figure(fig, output)
+    return fig, ax
+
+
+def _plot_single_timeseries(
+    group: pd.DataFrame,
+    id_column: str,
+    variable: str,
+    output: str | Path | None,
+    title: str,
+    x_label: str,
+):
+    element_id = str(group[id_column].iloc[0])
+    group = group.sort_values("_plot_time")
+
+    fig, ax = plt.subplots(figsize=(10, 4))
+    ax.plot(group["_plot_time"], group[variable], linewidth=1.8)
+    ax.axhline(0, linewidth=0.8, alpha=0.5)
+    ax.set_title(f"{title}: {element_id}")
+    ax.set_xlabel(x_label)
+    ax.set_ylabel(variable.replace("_", " ").title())
+    ax.set_xlim(group["_plot_time"].min(), group["_plot_time"].max())
+    ax.grid(True, alpha=0.35)
+
+    minimum = group[variable].min()
+    maximum = group[variable].max()
+    mean = group[variable].mean()
+    text = f"min: {minimum:.3g}\nmax: {maximum:.3g}\nmean: {mean:.3g}"
+    ax.text(
+        0.99,
+        0.98,
+        text,
+        transform=ax.transAxes,
+        ha="right",
+        va="top",
+        fontsize=9,
+        bbox={"boxstyle": "round", "facecolor": "white", "alpha": 0.75},
+    )
 
     fig.tight_layout()
     _save_figure(fig, output)
@@ -143,6 +189,27 @@ def _plot_timeseries_grid(
     return fig, axes
 
 
+def _plot_timeseries_individual(
+    df: pd.DataFrame,
+    id_column: str,
+    variable: str,
+    elements: Sequence[str] | None,
+    output_folder: str | Path,
+    title: str,
+) -> dict[str, Path]:
+    data, x_label = _prepare_plot_data(df, id_column, variable, elements)
+    folder = Path(output_folder)
+    folder.mkdir(parents=True, exist_ok=True)
+
+    files: dict[str, Path] = {}
+    for element_id, group in data.groupby(id_column, sort=True):
+        output = folder / f"{_safe_filename(str(element_id))}_{variable}.png"
+        fig, _ = _plot_single_timeseries(group, id_column, variable, output, title, x_label)
+        plt.close(fig)
+        files[str(element_id)] = output
+    return files
+
+
 def plot_multiple_links(results: dict, variable="flow", links=None, output=None, show_legend=True):
     """Plot a reported variable for selected links in one shared axis."""
     return _plot_timeseries(
@@ -183,6 +250,20 @@ def plot_multiple_nodes_grid(results: dict, variable="pressure", nodes=None, out
     )
 
 
+def plot_multiple_links_individual(results: dict, variable="flow", links=None, output_folder="outputs/links"):
+    """Export one image per selected link and return a map of link IDs to PNG paths."""
+    return _plot_timeseries_individual(
+        results["links"], "link_id", variable, links, output_folder, f"EPANET link {variable}"
+    )
+
+
+def plot_multiple_nodes_individual(results: dict, variable="pressure", nodes=None, output_folder="outputs/nodes"):
+    """Export one image per selected node and return a map of node IDs to PNG paths."""
+    return _plot_timeseries_individual(
+        results["nodes"], "node_id", variable, nodes, output_folder, f"EPANET node {variable}"
+    )
+
+
 def plot_link_flows(results: dict, links=None, output=None, show_legend=True):
     """Plot flow time series for selected links in one shared axis."""
     return plot_multiple_links(results, "flow", links, output, show_legend=show_legend)
@@ -193,9 +274,19 @@ def plot_link_flows_grid(results: dict, links=None, output=None, ncols=3):
     return plot_multiple_links_grid(results, "flow", links, output, ncols=ncols)
 
 
+def plot_link_flows_individual(results: dict, links=None, output_folder="outputs/flows"):
+    """Export one flow time-series image per selected link."""
+    return plot_multiple_links_individual(results, "flow", links, output_folder)
+
+
 def plot_link_velocities(results: dict, links=None, output=None, show_legend=True):
     """Plot velocity time series for selected links."""
     return plot_multiple_links(results, "velocity", links, output, show_legend=show_legend)
+
+
+def plot_link_velocities_individual(results: dict, links=None, output_folder="outputs/velocities"):
+    """Export one velocity time-series image per selected link."""
+    return plot_multiple_links_individual(results, "velocity", links, output_folder)
 
 
 def plot_node_pressures(results: dict, nodes=None, output=None, show_legend=True):
@@ -206,6 +297,11 @@ def plot_node_pressures(results: dict, nodes=None, output=None, show_legend=True
 def plot_node_pressures_grid(results: dict, nodes=None, output=None, ncols=3):
     """Plot pressure time series for selected nodes as small multiples."""
     return plot_multiple_nodes_grid(results, "pressure", nodes, output, ncols=ncols)
+
+
+def plot_node_pressures_individual(results: dict, nodes=None, output_folder="outputs/pressures"):
+    """Export one pressure time-series image per selected node."""
+    return plot_multiple_nodes_individual(results, "pressure", nodes, output_folder)
 
 
 def plot_node_demands(results: dict, nodes=None, output=None, show_legend=True):
