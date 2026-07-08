@@ -22,9 +22,34 @@ from epanet_postprocess.diagnostics import (
     check_negative_pressures,
 )
 from epanet_postprocess.export import export_results_to_excel, export_summary_to_excel
-from epanet_postprocess.plots import plot_link_flows, plot_node_pressures
+from epanet_postprocess.plots import (
+    plot_link_flows,
+    plot_link_flows_grid,
+    plot_link_flows_individual,
+    plot_node_pressures,
+)
 from epanet_postprocess.reader import read_rpt
 from epanet_postprocess.summary import summarize_links, summarize_nodes
+
+LINKS_OF_INTEREST = [
+    "P000001",
+    "P000003",
+    "P000004",
+    "P000005",
+    "P000006",
+    "P000008",
+    "P000010",
+    "P000011",
+    "P000012",
+    "P000016",
+    "P000017",
+    "P000020",
+    "P000023",
+    "P000028",
+    "P000029",
+    "P000032",
+    "P000035",
+]
 
 SECTOR_NODES = {
     "S1": {
@@ -118,8 +143,20 @@ def main() -> None:
 
     plot_link_flows(
         results,
-        links=["P000008", "P000009", "P000016"],
+        links=LINKS_OF_INTEREST,
         output=output_folder / "flows_selected_links.png",
+        show_legend=False,
+    )
+    plot_link_flows_grid(
+        results,
+        links=LINKS_OF_INTEREST,
+        output=output_folder / "flows_selected_links_grid.png",
+        ncols=3,
+    )
+    individual_flow_files = plot_link_flows_individual(
+        results,
+        links=LINKS_OF_INTEREST,
+        output_folder=output_folder / "flows_by_link",
     )
 
     sector_tables = []
@@ -153,6 +190,8 @@ def main() -> None:
 
     print(results["metadata"])
     print("Sector pressure files written to:", output_folder)
+    print("Individual link flow files written to:", output_folder / "flows_by_link")
+    print(f"Individual link flow figures: {len(individual_flow_files)}")
 
     export_results_to_excel(
         results,
