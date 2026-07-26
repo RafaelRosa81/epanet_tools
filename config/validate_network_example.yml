@@ -4,12 +4,35 @@ outdir: outputs/red_ejemplo
 
 inputs:
   pipes:
-    - path: data/tuberias_sector_1.shp
+    # pipe_class identifies the hydraulic type of every pipe in this input.
+    # The value is copied automatically to the internal/output column "clase".
+    # The same value must be used as a key under hydraulics.pipe_classes.
+    - path: data/tuberias_primarias.shp
       layer: null
-    - path: data/tuberias_sector_2.shp
+      pipe_class: primaria
+
+    - path: data/tuberias_secundarias.shp
       layer: null
+      pipe_class: secundaria
+
+    - path: data/tuberias_terciarias.shp
+      layer: null
+      pipe_class: terciaria
+
+    - path: data/goteo_sector_1_pebd.shp
+      layer: null
+      pipe_class: tuberia_PEBD
+
+    - path: data/goteo_sector_1_lineas.shp
+      layer: null
+      pipe_class: tuberia_gotero
+
+    # For a GeoPackage, "layer" selects the internal GIS layer.
+    # It is independent from pipe_class.
     - path: data/red_tuberias.gpkg
-      layer: tuberias
+      layer: tuberias_adicionales
+      pipe_class: secundaria
+
   dem: data/mdt.tif
 
 spatial:
@@ -30,15 +53,62 @@ hydraulics:
   units:
     flow: LPS
     headloss: H-W
+
+  # Fallback values used only when a valid value is not already present
+  # in the input attributes and is not defined by pipe_classes.
   pipe_defaults:
     diameter_mm: 63.0
     roughness: 140.0
     minor_loss: 0.0
     status: OPEN
+    material: PVC
+
+  # Optional mapping of existing source columns to the canonical fields
+  # used by epanet_tools. This block does not define pipe classes.
   field_mapping:
     diameter_mm: diametro
     roughness: rugosidad
     material: material
+
+  # Each key below must match a pipe_class value declared in inputs.pipes.
+  # epanet_tools writes pipe_class to the output column "clase" and uses it
+  # automatically to select the corresponding hydraulic properties.
+  # No category_field entry is required.
+  pipe_classes:
+    primaria:
+      diameter_mm: 110.0
+      roughness: 150.0
+      minor_loss: 0.0
+      status: OPEN
+      material: PVC
+
+    secundaria:
+      diameter_mm: 75.0
+      roughness: 150.0
+      minor_loss: 0.0
+      status: OPEN
+      material: PVC
+
+    terciaria:
+      diameter_mm: 50.0
+      roughness: 150.0
+      minor_loss: 0.0
+      status: OPEN
+      material: PVC
+
+    tuberia_PEBD:
+      diameter_mm: 16.0
+      roughness: 140.0
+      minor_loss: 0.0
+      status: OPEN
+      material: PEBD
+
+    tuberia_gotero:
+      diameter_mm: 16.0
+      roughness: 140.0
+      minor_loss: 0.0
+      status: OPEN
+      material: PEBD
 
 export:
   validation_report: true
