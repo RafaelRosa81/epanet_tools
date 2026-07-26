@@ -36,24 +36,35 @@ def apply_hydraulic_attributes(
     pipes: gpd.GeoDataFrame,
     hydraulics_config: dict[str, Any] | None,
 ) -> tuple[gpd.GeoDataFrame, HydraulicAttributeReport]:
-    """Apply hydraulic attributes using existing values, categories and defaults.
+    """Apply hydraulic attributes using existing values, pipe classes and defaults.
 
     Priority per field is:
 
-    1. valid existing value in ``pipes``;
-    2. category rule selected by ``hydraulics.category_field``;
-    3. ``hydraulics.pipe_defaults``;
-    4. leave missing and report.
+    1. valid existing value in the canonical hydraulic field;
+    2. valid value copied from ``hydraulics.field_mapping``;
+    3. class rule selected from ``hydraulics.pipe_classes`` or
+       ``hydraulics.categories``;
+    4. ``hydraulics.pipe_defaults``;
+    5. leave missing and report.
+
+    When class rules are configured and ``category_field`` is omitted, the
+    default classification field is ``clase``. This is the field generated from
+    ``inputs.pipes[].pipe_class`` by the GIS reader.
     """
     config = hydraulics_config if isinstance(hydraulics_config, dict) else {}
     defaults = _mapping(config.get("pipe_defaults"))
-    categories = _mapping(config.get("categories"))
+    categories = _mapping(config.get("pipe_classes")) or _mapping(config.get("categories"))
     category_field = config.get("category_field")
+    if category_field is None and categories:
+        category_field = "clase"
+    field_mapping = _mapping(config.get("field_mapping"))
 
     result = pipes.copy()
     for field in HYDRAULIC_PIPE_FIELDS:
         if field not in result.columns:
             result[field] = pd.NA
+
+    _copy_mapped_fields(result, field_mapping)
 
     existing_value_count = 0
     category_value_count = 0
@@ -76,8 +87,9 @@ def apply_hydraulic_attributes(
                     undefined_category_count += 1
 
         for field in HYDRAULIC_PIPE_FIELDS:
-            current_value = row.get(field)
+            current_value = result.at[index, field]
             if _is_valid_field_value(field, current_value):
+                result.at[index, field] = _normalize_field_value(field, current_value)
                 existing_value_count += 1
                 continue
 
@@ -115,6 +127,17 @@ def apply_hydraulic_attributes(
         undefined_category_count=undefined_category_count,
     )
     return result, report
+
+
+def _copy_mapped_fields(result: gpd.GeoDataFrame, field_mapping: dict[str, Any]) -> None:
+    """Copy source attribute fields into canonical hydraulic fields when missing."""
+    for canonical_field, source_field in field_mapping.items():
+        canonical = str(canonical_field)
+        source = str(source_field)
+        if canonical not in HYDRAULIC_PIPE_FIELDS or source not in result.columns:
+            continue
+        missing_mask = ~result[canonical].map(lambda value: _is_valid_field_value(canonical, value))
+        result.loc[missing_mask, canonical] = result.loc[missing_mask, source]
 
 
 def _mapping(value: Any) -> dict[str, Any]:
