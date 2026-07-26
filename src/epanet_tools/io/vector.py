@@ -37,11 +37,11 @@ def read_pipe_layers(
     pipe_inputs: list[dict[str, Any]],
     working_crs: str | int | CRS | None = None,
 ) -> gpd.GeoDataFrame:
-    """Read, reproject when needed, and combine several pipe layers.
+    """Read, reproject when needed, classify, and combine pipe layers.
 
-    Source files are never modified. When ``working_crs`` is provided, each layer
-    is reprojected in memory before concatenation. The returned GeoDataFrame keeps
-    source traceability fields including the original CRS.
+    Source files are never modified. Each input may define ``pipe_class`` or the
+    backward-compatible alias ``layer_name``. That value is written to the
+    ``clase`` field of every feature from that input layer.
     """
     if not pipe_inputs:
         msg = "At least one pipe input is required."
@@ -57,6 +57,7 @@ def read_pipe_layers(
             msg = "Each pipe input must define a path."
             raise ConfigurationError(msg)
         layer = pipe_input.get("layer")
+        pipe_class = pipe_input.get("pipe_class", pipe_input.get("layer_name"))
         pipes = read_pipe_layer(path, layer=layer)
         source_crs = CRS.from_user_input(pipes.crs)
 
@@ -73,6 +74,11 @@ def read_pipe_layers(
             pipes = pipes.to_crs(target_crs)
 
         pipes = pipes.copy()
+        if pipe_class is not None:
+            pipes["clase"] = str(pipe_class)
+        elif "clase" not in pipes.columns:
+            pipes["clase"] = pd.NA
+
         pipes["_source_order"] = order
         pipes["_source_path"] = str(path)
         pipes["_source_layer"] = layer
