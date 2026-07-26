@@ -61,6 +61,48 @@ python -m epanet_tools.workflows.validate_network --config config/validate_netwo
 
 The workflow reads one or several pipe layers, reprojects them in memory to `spatial.working_crs` when provided, validates CRS/geometries and exports QA outputs without modifying source data.
 
+### Pipe classes and hydraulic properties
+
+Each input pipe layer can declare a `pipe_class`:
+
+```yaml
+inputs:
+  pipes:
+    - path: data/primarias.shp
+      pipe_class: primaria
+    - path: data/goteo_sector_1.shp
+      pipe_class: tuberia_gotero
+```
+
+`epanet_tools` copies that value automatically to the `clase` column in the combined and cleaned GIS outputs. Hydraulic properties are then assigned with matching keys under `hydraulics.pipe_classes`:
+
+```yaml
+hydraulics:
+  pipe_classes:
+    primaria:
+      diameter_mm: 110.0
+      roughness: 150.0
+      material: PVC
+    tuberia_gotero:
+      diameter_mm: 16.0
+      roughness: 140.0
+      material: PEBD
+```
+
+The relationship is direct:
+
+```text
+inputs.pipes[].pipe_class
+        ↓
+output column "clase"
+        ↓
+hydraulics.pipe_classes.<same value>
+        ↓
+hydraulic attributes assigned to the pipe
+```
+
+The user does not need to configure `category_field: clase`; the program uses the generated `clase` column automatically. The older `category_field` and `categories` configuration remains supported for backward compatibility.
+
 Generated outputs:
 
 ```text
