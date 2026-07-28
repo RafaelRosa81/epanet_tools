@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+import matplotlib.pyplot as plt
 import pandas as pd
 
 from epanet_postprocess.diagnostics import (
@@ -32,72 +33,28 @@ from epanet_postprocess.reader import read_rpt
 from epanet_postprocess.summary import summarize_links, summarize_nodes
 
 LINKS_OF_INTEREST = [
-    "P000001",
-    "P000003",
-    "P000004",
-    "P000005",
-    "P000006",
-    "P000008",
-    "P000010",
-    "P000011",
-    "P000012",
-    "P000016",
-    "P000017",
-    "P000020",
-    "P000023",
-    "P000028",
-    "P000029",
-    "P000032",
-    "P000035",
+    "P000001", "P000003", "P000004", "P000005", "P000006",
+    "P000008", "P000010", "P000011", "P000012", "P000016",
+    "P000017", "P000020", "P000023", "P000028", "P000029",
+    "P000032", "P000035",
 ]
 
 SECTOR_NODES = {
-    "S1": {
-        "initial": ["J000013"],
-        "final": ["J000024", "J000023"],
-    },
-    "S2": {
-        "initial": ["J000014"],
-        "final": ["J000021"],
-    },
-    "S3": {
-        "initial": ["J000011"],
-        "final": ["J000026", "J000027"],
-    },
-    "S41": {
-        "initial": ["J000007"],
-        "final": ["J000017", "J000042", "J000016"],
-    },
-    "S42": {
-        "initial": ["J000008"],
-        "final": ["J000020", "J000041"],
-    },
-    "S5": {
-        "initial": ["J000006"],
-        "final": ["J000031", "J000032", "J000039"],
-    },
-    "S6": {
-        "initial": ["J000002"],
-        "final": ["J000037"],
-    },
-    "S7": {
-        "initial": ["J000004"],
-        "final": ["J000035", "J000033"],
-    },
-    "S8": {
-        "initial": ["J000003"],
-        "final": ["J000048", "J000047", "J000044", "J000045"],
-    },
+    "S1": {"initial": ["J000013"], "final": ["J000024", "J000023"]},
+    "S2": {"initial": ["J000014"], "final": ["J000021"]},
+    "S3": {"initial": ["J000011"], "final": ["J000026", "J000027"]},
+    "S41": {"initial": ["J000007"], "final": ["J000017", "J000042", "J000016"]},
+    "S42": {"initial": ["J000008"], "final": ["J000020", "J000041"]},
+    "S5": {"initial": ["J000006"], "final": ["J000031", "J000032", "J000039"]},
+    "S6": {"initial": ["J000002"], "final": ["J000037"]},
+    "S7": {"initial": ["J000004"], "final": ["J000035", "J000033"]},
+    "S8": {"initial": ["J000003"], "final": ["J000048", "J000047", "J000044", "J000045"]},
 }
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Postprocess an EPANET RPT result file.")
-    parser.add_argument(
-        "rpt_path",
-        type=Path,
-        help="Path to the EPANET .rpt file.",
-    )
+    parser.add_argument("rpt_path", type=Path, help="Path to the EPANET .rpt file.")
     parser.add_argument(
         "--output-folder",
         type=Path,
@@ -141,18 +98,22 @@ def main() -> None:
 
     results = read_rpt(args.rpt_path)
 
-    plot_link_flows(
+    fig, _ = plot_link_flows(
         results,
         links=LINKS_OF_INTEREST,
         output=output_folder / "flows_selected_links.png",
         show_legend=False,
     )
-    plot_link_flows_grid(
+    plt.close(fig)
+
+    fig, _ = plot_link_flows_grid(
         results,
         links=LINKS_OF_INTEREST,
         output=output_folder / "flows_selected_links_grid.png",
         ncols=3,
     )
+    plt.close(fig)
+
     individual_flow_files = plot_link_flows_individual(
         results,
         links=LINKS_OF_INTEREST,
@@ -166,11 +127,12 @@ def main() -> None:
             raise ValueError(f"Unknown sector '{sector_name}'. Valid sectors are: {valid}")
 
         nodes = selected_sector_nodes(sector_name)
-        plot_node_pressures(
+        fig, _ = plot_node_pressures(
             results,
             nodes=nodes,
             output=output_folder / f"pressures_{sector_name}.png",
         )
+        plt.close(fig)
         sector_tables.append(
             export_sector_pressure_table(results, sector_name, nodes, output_folder)
         )
