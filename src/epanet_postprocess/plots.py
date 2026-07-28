@@ -1,5 +1,6 @@
 """Time-series plots for normalized EPANET results."""
 
+import gc
 from math import ceil
 from pathlib import Path
 from typing import Sequence
@@ -204,9 +205,16 @@ def _plot_timeseries_individual(
     files: dict[str, Path] = {}
     for element_id, group in data.groupby(id_column, sort=True):
         output = folder / f"{_safe_filename(str(element_id))}_{variable}.png"
-        fig, _ = _plot_single_timeseries(group, id_column, variable, output, title, x_label)
+        fig, ax = _plot_single_timeseries(group, id_column, variable, output, title, x_label)
+        fig.clear()
         plt.close(fig)
+        del ax, fig
+        gc.collect()
         files[str(element_id)] = output
+
+    del data
+    plt.close("all")
+    gc.collect()
     return files
 
 
