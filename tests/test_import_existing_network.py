@@ -4,6 +4,7 @@ from shapely.geometry import LineString, Point
 from epanet_tools.io.vector import read_existing_network
 from epanet_tools.workflows.import_existing_network import (
     _apply_node_attributes_csv,
+    _apply_pipe_attributes_csv,
     _filter_network,
     _map_fields,
 )
@@ -117,3 +118,36 @@ def test_apply_node_attributes_csv_overrides_all_retained_elevations(tmp_path) -
     )
 
     assert enriched["elevation_m"].tolist() == [10.1, 11.2, 12.3]
+
+
+def test_apply_pipe_attributes_csv_overrides_retained_hydraulics(tmp_path) -> None:
+    pipes = gpd.GeoDataFrame(
+        {
+            "pipe_id": ["P1", "P2"],
+            "diameter_mm": [None, None],
+            "roughness": [None, None],
+        },
+        geometry=[
+            LineString([(0, 0), (1, 0)]),
+            LineString([(1, 0), (2, 0)]),
+        ],
+        crs="EPSG:32721",
+    )
+    csv_path = tmp_path / "pipe_hydraulics.csv"
+    csv_path.write_text(
+        "ID,DIAMETRO,C_HW\nP1,63,120\nP2,75,130\n",
+        encoding="utf-8",
+    )
+
+    enriched = _apply_pipe_attributes_csv(
+        pipes,
+        {
+            "path": str(csv_path),
+            "key": "ID",
+            "pipe_key": "pipe_id",
+            "fields": {"diameter_mm": "DIAMETRO", "roughness": "C_HW"},
+        },
+    )
+
+    assert enriched["diameter_mm"].tolist() == [63, 75]
+    assert enriched["roughness"].tolist() == [120, 130]
