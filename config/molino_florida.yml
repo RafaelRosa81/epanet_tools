@@ -1,0 +1,33 @@
+pipeline: import_existing_network
+name: molino_florida
+outdir: outputs/molino_florida
+
+inputs:
+  existing_network:
+    path: data/Molino_Florida_Red_Hidraulica.gpkg
+    node_layer: nodos
+    pipe_layer: tramos
+
+spatial:
+  working_crs: EPSG:32721
+
+field_mapping:
+  nodes:
+    node_id: ID
+    elevation_m: Z
+    demand: DEMANDA
+  pipes:
+    pipe_id: ID
+    from_node: NODE_INI
+    to_node: NODE_FIN
+    length_m: LONGITUD
+    diameter_mm: DIAMETRO
+    roughness: C_HW
+    material: MATERIAL
+
+hydraulics:
+  flow_units: LPS
+  headloss: H-W
+  pipe_defaults:
+    minor_loss: 0.0
+    status: OPEN
