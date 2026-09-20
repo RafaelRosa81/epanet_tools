@@ -89,10 +89,12 @@ def _junctions_section(junctions: gpd.GeoDataFrame) -> list[str]:
         "[JUNCTIONS]",
         ";ID                 Elevation      Demand         Pattern",
     ]
+    demand_field = "base_demand" if "base_demand" in junctions.columns else "demand"
     for _, row in junctions.iterrows():
         node_id = _text(row["node_id"])
         elevation = _number(row["elevation_m"])
-        lines.append(f" {node_id:<18} {elevation:<14} 0")
+        demand = _number(row[demand_field]) if demand_field in junctions.columns else "0"
+        lines.append(f" {node_id:<18} {elevation:<14} {demand}")
     lines.append("")
     return lines
 
