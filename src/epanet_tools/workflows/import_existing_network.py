@@ -13,6 +13,7 @@ import pandas as pd
 from epanet_tools.config import load_yaml_config, require_mapping
 from epanet_tools.hydraulic.attributes import HydraulicAttributeReport, apply_hydraulic_attributes
 from epanet_tools.hydraulic.validation import BasicModelValidationReport, validate_basic_epanet_model
+from epanet_tools.hydraulic.vertical_connections import add_vertical_connections
 from epanet_tools.io.inp import write_basic_inp
 from epanet_tools.io.reports import write_basic_model_validation_report, write_summary_report
 from epanet_tools.io.vector import read_existing_network
@@ -76,6 +77,10 @@ def import_existing_network(config_path: str | Path) -> ExistingNetworkImportRes
         pipes, _mapping(config, "pipe_attributes_csv")
     )
 
+    junctions, pipes, vertical_report = add_vertical_connections(
+        junctions, pipes, _mapping(config, "vertical_connections")
+    )
+
     if "length_m" not in pipes.columns:
         pipes["length_m"] = pipes.geometry.length
 
@@ -94,6 +99,11 @@ def import_existing_network(config_path: str | Path) -> ExistingNetworkImportRes
         outdir=outdir,
         name=name,
     )
+    if not vertical_report.empty:
+        vertical_report_path = outdir / "report" / f"{name}_vertical_connections.csv"
+        vertical_report_path.parent.mkdir(parents=True, exist_ok=True)
+        vertical_report.to_csv(vertical_report_path, index=False)
+        report_paths["vertical_connections_csv"] = vertical_report_path
 
     inp_path = write_basic_inp(
         junctions=junctions,
