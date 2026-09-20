@@ -104,7 +104,7 @@ def test_apply_node_attributes_csv_overrides_all_retained_elevations(tmp_path) -
         crs="EPSG:32721",
     )
     csv_path = tmp_path / "node_z.csv"
-    csv_path.write_text("ID,Z\\nN1,10.1\\nN2,11.2\\nN3,12.3\\n", encoding="utf-8")
+    csv_path.write_text("ID,Z\nN1,10.1\nN2,11.2\nN3,12.3\n", encoding="utf-8")
 
     enriched = _apply_node_attributes_csv(
         nodes,
