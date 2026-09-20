@@ -8,6 +8,9 @@ inputs:
     node_layer: nodos
     pipe_layer: tramos
 
+network_filter:
+  exclude_sectors: [8, 9, 10, 11, 12, 13, 14, 15]
+
 spatial:
   working_crs: EPSG:32721
 
