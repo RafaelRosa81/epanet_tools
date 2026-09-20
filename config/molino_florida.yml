@@ -15,6 +15,14 @@ node_attributes_csv:
   fields:
     elevation_m: Z
 
+pipe_attributes_csv:
+  path: data/TRAMOS_QGIS_WKT_con_D_HW.csv
+  key: ID
+  pipe_key: pipe_id
+  fields:
+    diameter_mm: DIAMETRO
+    roughness: C_HW
+
 network_filter:
   exclude_sectors: [8, 9, 10, 11, 12, 13, 14, 15]
 
