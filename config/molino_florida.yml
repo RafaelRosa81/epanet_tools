@@ -8,6 +8,13 @@ inputs:
     node_layer: nodos
     pipe_layer: tramos
 
+node_attributes_csv:
+  path: data/NODOS_QGIS_con_Z.csv
+  key: ID
+  node_key: node_id
+  fields:
+    elevation_m: Z
+
 network_filter:
   exclude_sectors: [8, 9, 10, 11, 12, 13, 14, 15]
 
