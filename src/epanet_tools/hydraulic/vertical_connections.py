@@ -43,9 +43,22 @@ def add_vertical_connections(
     status = str(config.get("status", "OPEN")).upper()
     display_offset_x = float(config.get("display_offset_x", -0.75))
     display_offset_y = float(config.get("display_offset_y", 0.0))
+    drawing_shift_x = float(config.get("drawing_shift_x", 0.0))
+    drawing_shift_y = float(config.get("drawing_shift_y", 0.0))
+    drawing_sectors = {
+        _sector_key(value) for value in config.get("drawing_sectors", [])
+    }
 
     nodes_out = junctions.copy()
     pipes_out = pipes.copy()
+    if drawing_sectors and (drawing_shift_x != 0.0 or drawing_shift_y != 0.0):
+        nodes_out, pipes_out = _shift_sector_drawing(
+            nodes_out,
+            pipes_out,
+            drawing_sectors,
+            drawing_shift_x,
+            drawing_shift_y,
+        )
     node_ids = set(nodes_out["node_id"].astype(str))
     pipe_ids = set(pipes_out["pipe_id"].astype(str))
     report_rows: list[dict[str, Any]] = []
@@ -246,3 +259,31 @@ def _sector_key(value: Any) -> str:
     except (TypeError, ValueError):
         pass
     return str(value).strip()
+
+
+
+def _shift_sector_drawing(
+    nodes: gpd.GeoDataFrame,
+    pipes: gpd.GeoDataFrame,
+    sectors: set[str],
+    dx: float,
+    dy: float,
+) -> tuple[gpd.GeoDataFrame, gpd.GeoDataFrame]:
+    """Translate selected sectors for EPANET display without changing hydraulics."""
+    nodes_out = nodes.copy()
+    pipes_out = pipes.copy()
+
+    node_mask = nodes_out["SECTOR"].map(_sector_key).isin(sectors)
+    nodes_out.loc[node_mask, "geometry"] = nodes_out.loc[node_mask, "geometry"].translate(
+        xoff=dx, yoff=dy
+    )
+    if "X" in nodes_out.columns:
+        nodes_out.loc[node_mask, "X"] = nodes_out.loc[node_mask, "geometry"].x
+    if "Y" in nodes_out.columns:
+        nodes_out.loc[node_mask, "Y"] = nodes_out.loc[node_mask, "geometry"].y
+
+    pipe_mask = pipes_out["SECTOR"].map(_sector_key).isin(sectors)
+    pipes_out.loc[pipe_mask, "geometry"] = pipes_out.loc[pipe_mask, "geometry"].translate(
+        xoff=dx, yoff=dy
+    )
+    return nodes_out, pipes_out
