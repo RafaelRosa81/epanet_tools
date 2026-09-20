@@ -1,9 +1,9 @@
-sector,moving_reference_node,fixed_reference_node,enabled,source_node,target_node,target_z,vertical_length_m,direction,notes
-15,15_J043,05_J043,true,G_J068,15_J043,-0.15,4.45,DOWN,Confirmed XY reference from user
-9,09_J043,,false,G_J068,09_J043,8.67,4.45,UP,Pending exact XY reference
-13,13_J043,,false,G_J068,13_J043,12.87,8.67,UP,Pending exact XY reference
-10,10_J052,,false,G_J046,10_J052,10.10,5.65,UP,Pending exact XY reference
-8,08_J036,,false,G_J067,08_J036,10.10,5.65,UP,Pending exact XY reference
-12,12_J007,,false,G_J055,12_J007,8.67,4.22,UP,Pending exact XY reference
-14,14_J007,,false,G_J055,14_J007,12.87,8.67,UP,Pending exact XY reference
-11,11_J012,,false,G_J053,11_J012,8.67,4.22,UP,Pending exact XY reference
+sector,source_node,target_node,target_z,vertical_length_m,direction,notes
+15,G_J068,15_J043,-0.15,4.45,DOWN,Vertical connection to sector 15
+9,G_J068,09_J043,8.67,4.45,UP,Vertical connection to sector 9
+13,G_J068,13_J043,12.87,8.67,UP,Vertical connection to sector 13
+10,G_J046,10_J052,10.10,5.65,UP,Vertical connection to sector 10
+8,G_J067,08_J036,10.10,5.65,UP,Vertical connection to sector 8
+12,G_J055,12_J007,8.67,4.22,UP,Vertical connection to sector 12
+14,G_J055,14_J007,12.87,8.67,UP,Vertical connection to sector 14
+11,G_J053,11_J012,8.67,4.22,UP,Vertical connection to sector 11
