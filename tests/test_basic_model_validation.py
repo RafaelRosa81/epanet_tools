@@ -65,3 +65,32 @@ def test_validate_basic_epanet_model_reports_blocking_issues() -> None:
     assert report.missing_diameters == 1
     assert report.invalid_pipe_status == 1
     assert report.invalid_node_references == 1
+
+
+def test_basic_model_validation_allows_negative_junction_elevation() -> None:
+    junctions = gpd.GeoDataFrame(
+        {
+            "node_id": ["J1", "J2"],
+            "elevation_m": [4.3, -0.15],
+        },
+        geometry=[Point(0, 0), Point(1, 0)],
+        crs="EPSG:32721",
+    )
+    pipes = gpd.GeoDataFrame(
+        {
+            "pipe_id": ["P1"],
+            "from_node": ["J1"],
+            "to_node": ["J2"],
+            "diameter_mm": [63.0],
+            "roughness": [120.0],
+            "minor_loss": [0.0],
+            "status": ["OPEN"],
+        },
+        geometry=[LineString([(0, 0), (1, 0)])],
+        crs="EPSG:32721",
+    )
+
+    report = validate_basic_epanet_model(junctions, pipes)
+
+    assert report.missing_elevations == 0
+    assert report.export_ready is True
