@@ -32,7 +32,12 @@ vertical_connections:
   roughness: 120.0
   minor_loss: 0.0
   status: OPEN
-  # Drawing-only offset: keeps each riser visible beside its sector entry.
+  # EPANET drawing only. Move S8-S15 closer to the main network while
+  # preserving their relative arrangement and every hydraulic property.
+  drawing_sectors: [8, 9, 10, 11, 12, 13, 14, 15]
+  drawing_shift_x: 0.0
+  drawing_shift_y: 70.0
+  # Keeps each generated riser visible beside its sector entry.
   display_offset_x: -0.75
   display_offset_y: 0.0
 
