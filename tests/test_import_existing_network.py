@@ -2,7 +2,11 @@ import geopandas as gpd
 from shapely.geometry import LineString, Point
 
 from epanet_tools.io.vector import read_existing_network
-from epanet_tools.workflows.import_existing_network import (\n    _apply_node_attributes_csv,\n    _filter_network,\n    _map_fields,\n)
+from epanet_tools.workflows.import_existing_network import (
+    _apply_node_attributes_csv,
+    _filter_network,
+    _map_fields,
+)
 
 
 def test_read_existing_network_reads_explicit_node_and_pipe_layers(tmp_path) -> None:
