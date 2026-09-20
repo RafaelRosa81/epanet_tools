@@ -110,9 +110,9 @@ def _pipes_section(pipes: gpd.GeoDataFrame) -> list[str]:
         from_node = _text(row["from_node"])
         to_node = _text(row["to_node"])
         length = _number(row["length_m"])
-        diameter = _number(row["diameter_mm"])
-        roughness = _number(row["roughness"])
-        minor_loss = _number(row["minor_loss"])
+        diameter = _number_or_default(row["diameter_mm"], 0.0)
+        roughness = _number_or_default(row["roughness"], 0.0)
+        minor_loss = _number_or_default(row["minor_loss"], 0.0)
         status = _text(row["status"])
         lines.append(
             f" {pipe_id:<18} {from_node:<18} {to_node:<18} "
