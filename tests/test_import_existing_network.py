@@ -2,7 +2,7 @@ import geopandas as gpd
 from shapely.geometry import LineString, Point
 
 from epanet_tools.io.vector import read_existing_network
-from epanet_tools.workflows.import_existing_network import _filter_network, _map_fields
+from epanet_tools.workflows.import_existing_network import (\n    _apply_node_attributes_csv,\n    _filter_network,\n    _map_fields,\n)
 
 
 def test_read_existing_network_reads_explicit_node_and_pipe_layers(tmp_path) -> None:
@@ -91,3 +91,25 @@ def test_filter_network_excludes_sectors_and_preserves_endpoints() -> None:
 
     assert filtered_nodes["node_id"].tolist() == ["N1", "N2"]
     assert filtered_pipes["pipe_id"].tolist() == ["P1"]
+
+
+def test_apply_node_attributes_csv_overrides_all_retained_elevations(tmp_path) -> None:
+    nodes = gpd.GeoDataFrame(
+        {"node_id": ["N1", "N2", "N3"], "elevation_m": [None, None, None]},
+        geometry=[Point(0, 0), Point(1, 0), Point(2, 0)],
+        crs="EPSG:32721",
+    )
+    csv_path = tmp_path / "node_z.csv"
+    csv_path.write_text("ID,Z\\nN1,10.1\\nN2,11.2\\nN3,12.3\\n", encoding="utf-8")
+
+    enriched = _apply_node_attributes_csv(
+        nodes,
+        {
+            "path": str(csv_path),
+            "key": "ID",
+            "node_key": "node_id",
+            "fields": {"elevation_m": "Z"},
+        },
+    )
+
+    assert enriched["elevation_m"].tolist() == [10.1, 11.2, 12.3]
