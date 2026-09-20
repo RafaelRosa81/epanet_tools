@@ -68,6 +68,8 @@ def import_existing_network(config_path: str | Path) -> ExistingNetworkImportRes
         defaults={"minor_loss": 0.0, "status": "OPEN"},
     )
 
+    junctions, pipes = _filter_network(junctions, pipes, _mapping(config, "network_filter"))
+
     if "length_m" not in pipes.columns:
         pipes["length_m"] = pipes.geometry.length
 
@@ -129,6 +131,46 @@ def _map_fields(
         else:
             result[field] = result[field].where(~pd.isna(result[field]), value)
     return result
+
+
+def _filter_network(
+    junctions: gpd.GeoDataFrame,
+    pipes: gpd.GeoDataFrame,
+    filter_config: dict[str, Any],
+) -> tuple[gpd.GeoDataFrame, gpd.GeoDataFrame]:
+    """Filter an existing network by sector while preserving node-pipe consistency."""
+    excluded = filter_config.get("exclude_sectors", [])
+    if not excluded:
+        return junctions, pipes
+    if "SECTOR" not in junctions.columns or "SECTOR" not in pipes.columns:
+        raise ValueError("network_filter.exclude_sectors requires a SECTOR field in nodes and pipes.")
+
+    excluded_values = {str(value) for value in excluded}
+    node_sector = junctions["SECTOR"].map(_sector_key)
+    pipe_sector = pipes["SECTOR"].map(_sector_key)
+    filtered_junctions = junctions.loc[~node_sector.isin(excluded_values)].copy()
+    filtered_pipes = pipes.loc[~pipe_sector.isin(excluded_values)].copy()
+
+    retained_nodes = set(filtered_junctions["node_id"].astype(str))
+    endpoints_ok = (
+        filtered_pipes["from_node"].astype(str).isin(retained_nodes)
+        & filtered_pipes["to_node"].astype(str).isin(retained_nodes)
+    )
+    filtered_pipes = filtered_pipes.loc[endpoints_ok].copy()
+    return filtered_junctions, filtered_pipes
+
+
+def _sector_key(value: Any) -> str:
+    """Normalize numeric sector labels so 8, 8.0 and '8' compare equally."""
+    if pd.isna(value):
+        return ""
+    try:
+        number = float(value)
+        if number.is_integer():
+            return str(int(number))
+    except (TypeError, ValueError):
+        pass
+    return str(value).strip()
 
 
 def _mapping(config: dict[str, Any], key: str) -> dict[str, Any]:
