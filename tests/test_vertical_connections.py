@@ -22,18 +22,21 @@ def test_add_vertical_connections_connects_sector_with_explicit_hydraulic_length
     )
     pipes = gpd.GeoDataFrame(
         {
-            "pipe_id": ["P15"],
-            "from_node": ["TARGET"],
-            "to_node": ["OTHER"],
-            "length_m": [2.0],
-            "diameter_mm": [63.0],
-            "roughness": [120.0],
-            "minor_loss": [0.0],
-            "status": ["OPEN"],
-            "ID": ["P15"],
-            "SECTOR": [15.0],
+            "pipe_id": ["P0", "P15"],
+            "from_node": ["G", "TARGET"],
+            "to_node": ["ANCHOR", "OTHER"],
+            "length_m": [0.3, 2.0],
+            "diameter_mm": [63.0, 63.0],
+            "roughness": [120.0, 120.0],
+            "minor_loss": [0.0, 0.0],
+            "status": ["OPEN", "OPEN"],
+            "ID": ["P0", "P15"],
+            "SECTOR": [5.0, 15.0],
         },
-        geometry=[LineString([(100, 100), (102, 100)])],
+        geometry=[
+            LineString([(0, 0), (0.3, 0)]),
+            LineString([(100, 100), (102, 100)]),
+        ],
         crs="EPSG:32721",
     )
     table = tmp_path / "vertical.csv"
@@ -55,8 +58,8 @@ def test_add_vertical_connections_connects_sector_with_explicit_hydraulic_length
     )
 
     assert len(out_nodes) == 5
-    assert len(out_pipes) == 3
-    assert set(out_pipes["pipe_id"]) == {"P15", "15_V001", "15_E001"}
+    assert len(out_pipes) == 4
+    assert set(out_pipes["pipe_id"]) == {"P0", "P15", "15_V001", "15_E001"}
     assert out_nodes.loc[out_nodes["node_id"] == "15_R001", "elevation_m"].iloc[0] == -0.15
     assert set(out_nodes.loc[out_nodes["SECTOR"] == 15.0, "elevation_m"]) == {-0.15}
     assert out_pipes.loc[out_pipes["pipe_id"] == "15_V001", "length_m"].iloc[0] == 4.45
