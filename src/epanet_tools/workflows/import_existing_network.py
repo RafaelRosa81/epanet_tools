@@ -72,6 +72,9 @@ def import_existing_network(config_path: str | Path) -> ExistingNetworkImportRes
     junctions = _apply_node_attributes_csv(
         junctions, _mapping(config, "node_attributes_csv")
     )
+    pipes = _apply_pipe_attributes_csv(
+        pipes, _mapping(config, "pipe_attributes_csv")
+    )
 
     if "length_m" not in pipes.columns:
         pipes["length_m"] = pipes.geometry.length
@@ -180,6 +183,53 @@ def _apply_node_attributes_csv(
     for target, source in fields.items():
         source_name = str(source)
         result[str(target)] = node_ids.map(lookup[source_name])
+    return result
+
+
+def _apply_pipe_attributes_csv(
+    pipes: gpd.GeoDataFrame,
+    csv_config: dict[str, Any],
+) -> gpd.GeoDataFrame:
+    """Override configured pipe attributes from a CSV joined by pipe identifier."""
+    if not csv_config:
+        return pipes
+
+    path_value = csv_config.get("path")
+    fields = csv_config.get("fields", {})
+    csv_key = str(csv_config.get("key", "ID"))
+    pipe_key = str(csv_config.get("pipe_key", "pipe_id"))
+    if not path_value or not isinstance(fields, dict) or not fields:
+        raise ValueError("pipe_attributes_csv requires path and a non-empty fields mapping.")
+    if pipe_key not in pipes.columns:
+        raise ValueError(f"Pipe join field '{pipe_key}' does not exist.")
+
+    csv_path = Path(str(path_value))
+    if not csv_path.exists():
+        raise FileNotFoundError(f"Pipe attributes CSV not found: {csv_path}")
+    attributes = pd.read_csv(csv_path)
+    required = {csv_key, *(str(source) for source in fields.values())}
+    missing = sorted(required.difference(attributes.columns))
+    if missing:
+        raise ValueError(f"Pipe attributes CSV is missing fields: {', '.join(missing)}")
+    if attributes[csv_key].isna().any():
+        raise ValueError(f"Pipe attributes CSV contains missing values in key '{csv_key}'.")
+    if attributes[csv_key].astype(str).duplicated().any():
+        raise ValueError(f"Pipe attributes CSV contains duplicate values in key '{csv_key}'.")
+
+    lookup = attributes.set_index(attributes[csv_key].astype(str))
+    result = pipes.copy()
+    pipe_ids = result[pipe_key].astype(str)
+    unmatched = ~pipe_ids.isin(lookup.index)
+    if unmatched.any():
+        examples = ", ".join(pipe_ids.loc[unmatched].head(5).tolist())
+        raise ValueError(
+            f"Pipe attributes CSV does not contain {int(unmatched.sum())} retained pipes. "
+            f"Examples: {examples}"
+        )
+
+    for target, source in fields.items():
+        source_name = str(source)
+        result[str(target)] = pipe_ids.map(lookup[source_name])
     return result
 
 
