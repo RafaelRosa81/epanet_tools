@@ -54,6 +54,9 @@ def test_add_vertical_connections_connects_sector_with_explicit_hydraulic_length
             "diameter_mm": 63.0,
             "roughness": 120.0,
             "display_offset_x": -0.75,
+            "drawing_sectors": [15],
+            "drawing_shift_x": 0.0,
+            "drawing_shift_y": 70.0,
         },
     )
 
@@ -65,6 +68,13 @@ def test_add_vertical_connections_connects_sector_with_explicit_hydraulic_length
     assert out_pipes.loc[out_pipes["pipe_id"] == "15_V001", "length_m"].iloc[0] == 4.45
     assert abs(out_pipes.loc[out_pipes["pipe_id"] == "15_E001", "length_m"].iloc[0] - 0.3) < 1e-9
     assert report.loc[0, "riser_node"] == "15_R001"
+    # Drawing shift changes only display geometry; hydraulic lengths stay explicit.
+    target_geom = out_nodes.loc[out_nodes["node_id"] == "TARGET", "geometry"].iloc[0]
+    other_geom = out_nodes.loc[out_nodes["node_id"] == "OTHER", "geometry"].iloc[0]
+    assert target_geom.y == 170.0
+    assert other_geom.y == 170.0
+    assert out_pipes.loc[out_pipes["pipe_id"] == "P15", "length_m"].iloc[0] == 2.0
+    assert out_pipes.loc[out_pipes["pipe_id"] == "15_V001", "length_m"].iloc[0] == 4.45
 
     validation = validate_basic_epanet_model(out_nodes, out_pipes)
     assert validation.disconnected_components == 1
