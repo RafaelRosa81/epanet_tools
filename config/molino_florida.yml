@@ -24,7 +24,17 @@ pipe_attributes_csv:
     roughness: C_HW
 
 network_filter:
-  exclude_sectors: [8, 9, 10, 11, 12, 13, 14, 15]
+  exclude_sectors: []
+
+vertical_connections:
+  table_path: config/molino_florida_vertical_connections.csv
+  diameter_mm: 63.0
+  roughness: 120.0
+  minor_loss: 0.0
+  status: OPEN
+  # Drawing-only offset: keeps each riser visible beside its sector entry.
+  display_offset_x: -0.75
+  display_offset_y: 0.0
 
 spatial:
   working_crs: EPSG:32721
