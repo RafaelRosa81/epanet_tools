@@ -69,6 +69,9 @@ def import_existing_network(config_path: str | Path) -> ExistingNetworkImportRes
     )
 
     junctions, pipes = _filter_network(junctions, pipes, _mapping(config, "network_filter"))
+    junctions = _apply_node_attributes_csv(
+        junctions, _mapping(config, "node_attributes_csv")
+    )
 
     if "length_m" not in pipes.columns:
         pipes["length_m"] = pipes.geometry.length
@@ -130,6 +133,53 @@ def _map_fields(
             result[field] = value
         else:
             result[field] = result[field].where(~pd.isna(result[field]), value)
+    return result
+
+
+def _apply_node_attributes_csv(
+    junctions: gpd.GeoDataFrame,
+    csv_config: dict[str, Any],
+) -> gpd.GeoDataFrame:
+    """Override configured node attributes from a CSV joined by node identifier."""
+    if not csv_config:
+        return junctions
+
+    path_value = csv_config.get("path")
+    fields = csv_config.get("fields", {})
+    csv_key = str(csv_config.get("key", "ID"))
+    node_key = str(csv_config.get("node_key", "node_id"))
+    if not path_value or not isinstance(fields, dict) or not fields:
+        raise ValueError("node_attributes_csv requires path and a non-empty fields mapping.")
+    if node_key not in junctions.columns:
+        raise ValueError(f"Node join field '{node_key}' does not exist.")
+
+    csv_path = Path(str(path_value))
+    if not csv_path.exists():
+        raise FileNotFoundError(f"Node attributes CSV not found: {csv_path}")
+    attributes = pd.read_csv(csv_path)
+    required = {csv_key, *(str(source) for source in fields.values())}
+    missing = sorted(required.difference(attributes.columns))
+    if missing:
+        raise ValueError(f"Node attributes CSV is missing fields: {', '.join(missing)}")
+    if attributes[csv_key].isna().any():
+        raise ValueError(f"Node attributes CSV contains missing values in key '{csv_key}'.")
+    if attributes[csv_key].astype(str).duplicated().any():
+        raise ValueError(f"Node attributes CSV contains duplicate values in key '{csv_key}'.")
+
+    lookup = attributes.set_index(attributes[csv_key].astype(str))
+    result = junctions.copy()
+    node_ids = result[node_key].astype(str)
+    unmatched = ~node_ids.isin(lookup.index)
+    if unmatched.any():
+        examples = ", ".join(node_ids.loc[unmatched].head(5).tolist())
+        raise ValueError(
+            f"Node attributes CSV does not contain {int(unmatched.sum())} retained nodes. "
+            f"Examples: {examples}"
+        )
+
+    for target, source in fields.items():
+        source_name = str(source)
+        result[str(target)] = node_ids.map(lookup[source_name])
     return result
 
 
