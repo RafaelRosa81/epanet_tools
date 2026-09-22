@@ -27,11 +27,7 @@ def read_sector_design_table(
     header_row: int = 2,
     columns: SectorScenarioColumns = SectorScenarioColumns(),
 ) -> pd.DataFrame:
-    """Read and validate sector design conditions from the project workbook.
-
-    ``header_row`` is zero-based, so the Molino Florida workbook uses 2 because
-    the actual table headings are on Excel row 3.
-    """
+    """Read and validate sector design conditions from the project workbook."""
     table = pd.read_excel(path, sheet_name=sheet_name, header=header_row)
     required = {
         columns.sector,
@@ -62,7 +58,6 @@ def read_sector_design_table(
         raise ValueError("Sprinkler flow cannot be negative.")
     if (result[columns.pressure_target_bar] < 0).any():
         raise ValueError("Target sprinkler pressure cannot be negative.")
-
     result["q_sector_l_min"] = (
         result[columns.active_sprinklers] * result[columns.sprinkler_flow_l_min]
     )
@@ -77,11 +72,7 @@ def build_network_graph(pipes: pd.DataFrame) -> nx.Graph:
         raise ValueError(f"Pipe table is missing fields: {', '.join(missing)}")
     graph = nx.Graph()
     for row in pipes.itertuples(index=False):
-        graph.add_edge(
-            str(row.from_node),
-            str(row.to_node),
-            weight=float(row.length_m),
-        )
+        graph.add_edge(str(row.from_node), str(row.to_node), weight=float(row.length_m))
     return graph
 
 
@@ -94,12 +85,7 @@ def select_farthest_sprinklers(
     source_node: str = "P-0001",
     sprinkler_descriptions: Iterable[str] = ("SPRINKLER", "ROCIADOR"),
 ) -> pd.DataFrame:
-    """Select the N hydraulically farthest sprinkler candidates by network length.
-
-    Selection uses shortest-path pipe length from ``source_node``. It does not
-    use XY distance, so vertical and explicitly assigned hydraulic lengths are
-    respected.
-    """
+    """Select N sprinkler candidates farthest from the source by network length."""
     if count == 0:
         return pd.DataFrame(columns=["node_id", "distance_from_source_m"])
     required = {"node_id", "SECTOR"}
@@ -145,17 +131,13 @@ def prepare_sector_scenarios(
 ) -> pd.DataFrame:
     """Create the auditable input table for independent sector simulations."""
     records: list[dict[str, object]] = []
-    for row in design.itertuples(index=False):
-        sector = int(getattr(row, columns.sector))
-        count = int(getattr(row, columns.active_sprinklers))
-        q_sprinkler = float(getattr(row, columns.sprinkler_flow_l_min))
-        pressure = float(getattr(row, columns.pressure_target_bar.replace(" ", "_")))
+    for _, row in design.iterrows():
+        sector = int(row[columns.sector])
+        count = int(row[columns.active_sprinklers])
+        q_sprinkler = float(row[columns.sprinkler_flow_l_min])
+        pressure = float(row[columns.pressure_target_bar])
         selected = select_farthest_sprinklers(
-            nodes,
-            pipes,
-            sector=sector,
-            count=count,
-            source_node=source_node,
+            nodes, pipes, sector=sector, count=count, source_node=source_node
         )
         records.append(
             {
