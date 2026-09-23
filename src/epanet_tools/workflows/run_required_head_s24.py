@@ -18,6 +18,19 @@ from epanet_tools.hydraulic.runepanet import (
 M_PER_BAR = 10.197162129779
 
 
+def _report_warning_types(rpt: str | Path) -> set[str]:
+    """Classify hydraulic warnings relevant to the required-head search."""
+    text=Path(rpt).read_text(encoding="utf-8",errors="replace").lower()
+    tokens={
+        "negative_pressures":"negative pressures",
+        "system_unbalanced":"system unbalanced",
+        "system_disconnected":"system disconnected",
+        "ill_conditioned":"ill-conditioned",
+        "cannot_solve":"cannot solve network hydraulic equations",
+    }
+    return {name for name,token in tokens.items() if token in text}
+
+
 def run_s24(
     master_inp: str | Path = "data/molino_florida_5.inp",
     scenarios_csv: str | Path = "outputs/molino_florida/report/molino_florida_sector_scenarios.csv",
@@ -32,16 +45,26 @@ def run_s24(
     row=row.iloc[0]; nodes=[v for v in str(row["active_nodes"]).split(";") if v]; q=float(row["q_sprinkler_l_min"]); target=float(row["pressure_target_bar"])
     demands={node:q for node in nodes}; outdir.mkdir(parents=True,exist_ok=True)
     trial_counter=0
+    trial_warning_types: dict[int,str] = {}
     def evaluate(head_m: float) -> tuple[float,str]:
         nonlocal trial_counter
         trial_counter+=1; stem=f"s24_trial_{trial_counter:02d}_{head_m:.4f}m"; inp=outdir/f"{stem}.inp"; rpt=outdir/f"{stem}.rpt"; binary=outdir/f"{stem}.bin"
         prepare_constant_head_scenario(master_inp,inp,active_demands_l_min=demands,trial_head_m=head_m)
         run_epanet(executable,inp,rpt,binary)
-        if report_has_hydraulic_warnings(rpt): raise RuntimeError(f"Hydraulic warning in trial {head_m:.4f} m; inspect {rpt}")
+        warnings=_report_warning_types(rpt)
+        trial_warning_types[trial_counter]=";".join(sorted(warnings))
+        severe=warnings-{"negative_pressures"}
+        if severe:
+            raise RuntimeError(f"Severe hydraulic warning in trial {head_m:.4f} m ({', '.join(sorted(severe))}); inspect {rpt}")
+        # Negative pressure is an expected lower-bound result in a minimum-head
+        # search. EPANET still supplies the node pressures, so let the binary
+        # search classify this trial as insufficient and increase the head.
         pressure_m=parse_node_pressures(rpt,nodes); pressure_bar={k:v/M_PER_BAR for k,v in pressure_m.items()}; critical=min(pressure_bar,key=pressure_bar.get)
         return pressure_bar[critical],critical
     required,trials=binary_search_required_head(evaluate,target_pressure_bar=target,low_head_m=0.0,high_head_m=80.0,pressure_tolerance_bar=0.01,head_tolerance_m=0.02,max_iterations=20)
-    trials_df=pd.DataFrame([asdict(t) for t in trials]); trials_path=outdir/"s24_iterations.csv"; trials_df.to_csv(trials_path,index=False)
+    trials_df=pd.DataFrame([asdict(t) for t in trials])
+    trials_df["warning_types"]=[trial_warning_types.get(i,"") for i in range(1,len(trials_df)+1)]
+    trials_path=outdir/"s24_iterations.csv"; trials_df.to_csv(trials_path,index=False)
 
     final_inp=outdir/"s24_final.inp"; final_rpt=outdir/"s24_final.rpt"; final_bin=outdir/"s24_final.bin"
     prepare_constant_head_scenario(master_inp,final_inp,active_demands_l_min=demands,trial_head_m=required)
