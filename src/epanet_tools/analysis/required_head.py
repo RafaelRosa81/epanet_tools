@@ -66,7 +66,8 @@ def prepare_constant_head_scenario(master_inp: str | Path, output_inp: str | Pat
     if "RULES" in sec: text=_replace_section(text,"RULES",["; disabled for required-head experiment"])
     text=_replace_section(text,"TIMES",["DURATION\t0:00","HYDRAULIC TIMESTEP\t0:05","QUALITY TIMESTEP\t0:05","PATTERN TIMESTEP\t0:30","PATTERN START\t0:00","REPORT TIMESTEP\t0:05","REPORT START\t0:00","START CLOCKTIME\t12:00 AM","STATISTIC\tNONE"])
     if "REPORT" in sec:
-        text=_replace_section(text,"REPORT",["STATUS\tFULL","SUMMARY\tYES","NODES\tALL","LINKS\tNONE"])
+        # Link results are required for the post-run pipe flow/velocity audit.
+        text=_replace_section(text,"REPORT",["STATUS\tFULL","SUMMARY\tYES","NODES\tALL","LINKS\tALL"])
     output_inp=Path(output_inp); output_inp.parent.mkdir(parents=True,exist_ok=True); output_inp.write_text(text,encoding="utf-8"); return output_inp
 
 def binary_search_required_head(evaluate: Callable[[float], tuple[float,str]], *, target_pressure_bar: float, low_head_m: float=0.0, high_head_m: float=80.0, pressure_tolerance_bar: float=0.01, head_tolerance_m: float=0.02, max_iterations: int=20) -> tuple[float,list[HeadTrial]]:
