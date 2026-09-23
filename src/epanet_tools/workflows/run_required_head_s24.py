@@ -4,12 +4,16 @@ from __future__ import annotations
 import argparse
 from dataclasses import asdict
 from pathlib import Path
-import shutil
 
 import pandas as pd
 
 from epanet_tools.analysis.required_head import binary_search_required_head, prepare_constant_head_scenario
-from epanet_tools.hydraulic.runepanet import parse_node_pressures, report_has_hydraulic_warnings, run_epanet
+from epanet_tools.hydraulic.runepanet import (
+    parse_node_pressures,
+    pipe_hydraulic_results,
+    report_has_hydraulic_warnings,
+    run_epanet,
+)
 
 M_PER_BAR = 10.197162129779
 
@@ -38,13 +42,42 @@ def run_s24(
         return pressure_bar[critical],critical
     required,trials=binary_search_required_head(evaluate,target_pressure_bar=target,low_head_m=0.0,high_head_m=80.0,pressure_tolerance_bar=0.01,head_tolerance_m=0.02,max_iterations=20)
     trials_df=pd.DataFrame([asdict(t) for t in trials]); trials_path=outdir/"s24_iterations.csv"; trials_df.to_csv(trials_path,index=False)
-    # Re-run exact accepted head and keep a stable verification INP/RPT.
+
     final_inp=outdir/"s24_final.inp"; final_rpt=outdir/"s24_final.rpt"; final_bin=outdir/"s24_final.bin"
     prepare_constant_head_scenario(master_inp,final_inp,active_demands_l_min=demands,trial_head_m=required)
-    run_epanet(executable,final_inp,final_rpt,final_bin); pressure_m=parse_node_pressures(final_rpt,nodes); pressure_bar={k:v/M_PER_BAR for k,v in pressure_m.items()}; critical=min(pressure_bar,key=pressure_bar.get); pmin=pressure_bar[critical]
-    summary=pd.DataFrame([{"sector":24,"n_sprinklers":len(nodes),"q_sprinkler_l_min":q,"q_sector_l_min":q*len(nodes),"target_pressure_bar":target,"required_head_m":required,"critical_node":critical,"achieved_min_pressure_bar":pmin,"margin_bar":pmin-target,"reservoir_reference_head_m":0.0}])
+    run_epanet(executable,final_inp,final_rpt,final_bin)
+    if report_has_hydraulic_warnings(final_rpt): raise RuntimeError(f"Hydraulic warning in final S24 run; inspect {final_rpt}")
+    pressure_m=parse_node_pressures(final_rpt,nodes); pressure_bar={k:v/M_PER_BAR for k,v in pressure_m.items()}; critical=min(pressure_bar,key=pressure_bar.get); pmin=pressure_bar[critical]
+
+    # Pipe audit: retain every pipe carrying meaningful flow in the final hydraulic state.
+    pipe_rows=pipe_hydraulic_results(final_inp,final_rpt,min_abs_flow_l_min=0.01)
+    pipes_df=pd.DataFrame(pipe_rows)
+    if not pipes_df.empty:
+        pipes_df.insert(0,"sector",24)
+        pipes_df=pipes_df.sort_values(["velocity_m_s","abs_flow_l_min"],ascending=[False,False])
+        max_row=pipes_df.iloc[0]
+        max_velocity=float(max_row["velocity_m_s"]); max_velocity_pipe=str(max_row["pipe_id"])
+        active_pipe_count=len(pipes_df)
+        weighted_velocity=float((pipes_df["velocity_m_s"]*pipes_df["abs_flow_l_min"]).sum()/pipes_df["abs_flow_l_min"].sum())
+    else:
+        max_velocity=float("nan"); max_velocity_pipe=""; active_pipe_count=0; weighted_velocity=float("nan")
+    pipes_path=outdir/"s24_pipe_velocities.csv"; pipes_df.to_csv(pipes_path,index=False)
+
+    summary=pd.DataFrame([{
+        "sector":24,"n_sprinklers":len(nodes),"q_sprinkler_l_min":q,"q_sector_l_min":q*len(nodes),
+        "target_pressure_bar":target,"required_head_m":required,"critical_node":critical,
+        "achieved_min_pressure_bar":pmin,"margin_bar":pmin-target,"reservoir_reference_head_m":0.0,
+        "active_pipe_count":active_pipe_count,"max_velocity_m_s":max_velocity,
+        "max_velocity_pipe":max_velocity_pipe,"flow_weighted_mean_velocity_m_s":weighted_velocity,
+    }])
     summary_path=outdir/"s24_summary.csv"; summary.to_csv(summary_path,index=False)
-    return {"status":"ok","sector":24,"required_head_m":required,"critical_node":critical,"min_pressure_bar":pmin,"target_pressure_bar":target,"iterations":len(trials),"iterations_csv":str(trials_path),"summary_csv":str(summary_path),"final_inp":str(final_inp),"final_rpt":str(final_rpt)}
+    return {
+        "status":"ok","sector":24,"required_head_m":required,"critical_node":critical,
+        "min_pressure_bar":pmin,"target_pressure_bar":target,"iterations":len(trials),
+        "active_pipe_count":active_pipe_count,"max_velocity_m_s":max_velocity,"max_velocity_pipe":max_velocity_pipe,
+        "iterations_csv":str(trials_path),"summary_csv":str(summary_path),"pipe_velocities_csv":str(pipes_path),
+        "final_inp":str(final_inp),"final_rpt":str(final_rpt),
+    }
 
 def main() -> None:
     p=argparse.ArgumentParser(description=__doc__); p.add_argument("--master-inp",default="data/molino_florida_5.inp"); p.add_argument("--scenarios-csv",default="outputs/molino_florida/report/molino_florida_sector_scenarios.csv"); p.add_argument("--epanet",default=r"C:\Program Files (x86)\EPANET 2.2\runepanet.exe"); p.add_argument("--outdir",default="outputs/molino_florida/required_head/S24"); a=p.parse_args(); print(run_s24(a.master_inp,a.scenarios_csv,a.epanet,a.outdir))
