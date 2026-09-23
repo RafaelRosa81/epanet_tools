@@ -30,13 +30,27 @@ def _replace_section(text: str, name: str, lines: list[str]) -> str:
     return pat.sub(block, text, count=1)
 
 def prepare_constant_head_scenario(master_inp: str | Path, output_inp: str | Path, *, active_demands_l_min: dict[str, float], trial_head_m: float, reservoir_id: str = "Tanque_1", pump_id: str = "B_Impulsion", bypass_length_m: float = 0.01, bypass_diameter_mm: float = 1000.0, bypass_roughness: float = 150.0) -> Path:
-    """Create a one-state scenario where reservoir head represents pump head."""
+    """Create a one-state scenario where reservoir head represents pump head.
+
+    Required-head experiments are deliberately independent of the irrigation
+    schedule in the master model. Junction base demands are replaced by the
+    requested scenario demands and any junction demand-pattern column is
+    removed, so every selected sprinkler delivers its requested constant flow
+    at DURATION 0:00. Additional [DEMANDS] categories are disabled as well.
+    """
     text = Path(master_inp).read_text(encoding="utf-8-sig", errors="replace"); sec = _sections(text)
     junctions=[]; found=set()
     for line in sec.get("JUNCTIONS", []):
         raw,*comment=line.split(";",1); cols=raw.split()
         if len(cols)>=3 and not raw.lstrip().startswith(";"):
-            node=cols[0]; cols[2]=str(float(active_demands_l_min.get(node,0.0))); found.add(node) if node in active_demands_l_min else None; raw="\t".join(cols)
+            node=cols[0]
+            # Keep only ID, elevation and the scenario demand. In particular,
+            # discard a pre-existing pattern such as S24_ON; otherwise EPANET
+            # multiplies the scenario demand by that schedule at time zero.
+            cols=cols[:3]
+            cols[2]=str(float(active_demands_l_min.get(node,0.0)))
+            if node in active_demands_l_min: found.add(node)
+            raw="\t".join(cols)
         junctions.append(raw + ((" ;"+comment[0]) if comment else ""))
     missing=set(active_demands_l_min)-found
     if missing: raise ValueError(f"Active nodes not found in [JUNCTIONS]: {sorted(missing)}")
