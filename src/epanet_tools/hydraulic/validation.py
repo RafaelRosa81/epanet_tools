@@ -55,7 +55,9 @@ def validate_basic_epanet_model(
     isolated_junctions = nx.number_of_isolates(graph) if graph.number_of_nodes() else 0
     disconnected_components = nx.number_connected_components(graph) if graph.number_of_nodes() else 0
 
-    missing_elevations = _missing_or_invalid_numeric(junctions, "elevation_m", allow_zero=True)
+    missing_elevations = _missing_or_invalid_numeric(
+        junctions, "elevation_m", allow_zero=True, allow_negative=True
+    )
     missing_diameters = _missing_or_invalid_numeric(pipes, "diameter_mm", allow_zero=False)
     missing_roughness = _missing_or_invalid_numeric(pipes, "roughness", allow_zero=False)
     missing_minor_loss = _missing_or_invalid_numeric(pipes, "minor_loss", allow_zero=True)
@@ -101,6 +103,7 @@ def _missing_or_invalid_numeric(
     data: gpd.GeoDataFrame,
     field: str,
     allow_zero: bool,
+    allow_negative: bool = False,
 ) -> int:
     if field not in data.columns:
         return len(data)
@@ -113,6 +116,8 @@ def _missing_or_invalid_numeric(
             number = float(value)
         except (TypeError, ValueError):
             count += 1
+            continue
+        if allow_negative:
             continue
         if allow_zero:
             if number < 0:

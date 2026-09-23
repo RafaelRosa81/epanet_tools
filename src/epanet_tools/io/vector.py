@@ -92,6 +92,63 @@ def read_pipe_layers(
     return combined
 
 
+def read_existing_network(
+    path: str | Path,
+    node_layer: str,
+    pipe_layer: str,
+    working_crs: str | int | CRS | None = None,
+) -> tuple[gpd.GeoDataFrame, gpd.GeoDataFrame]:
+    """Read explicit node and pipe layers from an existing GIS network.
+
+    The source dataset is never modified. Both layers must define a CRS. If a
+    projected working CRS is provided, both layers are reprojected in memory.
+    Without a working CRS, node and pipe layers must already use the same CRS.
+    """
+    vector_path = Path(path)
+    if not vector_path.exists():
+        msg = f"Network dataset does not exist: {vector_path}"
+        raise FileNotFoundError(msg)
+
+    nodes = gpd.read_file(vector_path, layer=node_layer)
+    pipes = gpd.read_file(vector_path, layer=pipe_layer)
+
+    if nodes.empty:
+        raise ConfigurationError(f"Node layer is empty: {node_layer}")
+    if pipes.empty:
+        raise ConfigurationError(f"Pipe layer is empty: {pipe_layer}")
+    if nodes.crs is None:
+        raise ConfigurationError(f"Node layer has no CRS: {node_layer}")
+    if pipes.crs is None:
+        raise ConfigurationError(f"Pipe layer has no CRS: {pipe_layer}")
+
+    node_crs = CRS.from_user_input(nodes.crs)
+    pipe_crs = CRS.from_user_input(pipes.crs)
+    target_crs = _resolve_target_crs(working_crs)
+
+    if target_crs is None:
+        if node_crs != pipe_crs:
+            msg = (
+                "Node and pipe layers use different CRS. Define spatial.working_crs "
+                "to reproject them safely in memory."
+            )
+            raise ConfigurationError(msg)
+    else:
+        if node_crs != target_crs:
+            nodes = nodes.to_crs(target_crs)
+        if pipe_crs != target_crs:
+            pipes = pipes.to_crs(target_crs)
+
+    nodes = nodes.copy()
+    pipes = pipes.copy()
+    nodes["_source_path"] = str(path)
+    nodes["_source_layer"] = node_layer
+    nodes["_source_crs"] = node_crs.to_string()
+    pipes["_source_path"] = str(path)
+    pipes["_source_layer"] = pipe_layer
+    pipes["_source_crs"] = pipe_crs.to_string()
+    return nodes, pipes
+
+
 def _resolve_target_crs(working_crs: str | int | CRS | None) -> CRS | None:
     if working_crs in (None, "", "null"):
         return None

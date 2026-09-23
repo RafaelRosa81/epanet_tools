@@ -1,0 +1,9 @@
+sector,source_node,anchor_node,target_node,target_z,vertical_length_m,direction,notes
+15,G_J068,05_J043,15_J043,-0.15,4.45,DOWN,Vertical connection to sector 15
+9,G_J068,05_J043,09_J043,8.67,4.45,UP,Vertical connection to sector 9
+13,G_J068,05_J043,13_J043,12.87,8.67,UP,Vertical connection to sector 13
+10,G_J046,06_J042,10_J052,10.10,5.65,UP,Vertical connection to sector 10
+8,G_J067,16_J018,08_J036,10.10,5.65,UP,Vertical connection to sector 8
+12,G_J055,27_J007,12_J007,8.67,4.22,UP,Vertical connection to sector 12
+14,G_J055,27_J007,14_J007,12.87,8.67,UP,Vertical connection to sector 14
+11,G_J053,28_J013,11_J012,8.67,4.22,UP,Vertical connection to sector 11

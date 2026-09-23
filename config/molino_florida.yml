@@ -1,0 +1,66 @@
+pipeline: import_existing_network
+name: molino_florida
+outdir: outputs/molino_florida
+
+inputs:
+  existing_network:
+    path: data/Molino_Florida_Red_Hidraulica.gpkg
+    node_layer: nodos
+    pipe_layer: tramos
+
+node_attributes_csv:
+  path: data/NODOS_QGIS_con_Z.csv
+  key: ID
+  node_key: node_id
+  fields:
+    elevation_m: Z
+
+pipe_attributes_csv:
+  path: data/TRAMOS_QGIS_WKT_con_D_HW.csv
+  key: ID
+  pipe_key: pipe_id
+  fields:
+    diameter_mm: DIAMETRO
+    roughness: C_HW
+
+network_filter:
+  exclude_sectors: []
+
+vertical_connections:
+  table_path: config/molino_florida_vertical_connections.csv
+  diameter_mm: 63.0
+  roughness: 120.0
+  minor_loss: 0.0
+  status: OPEN
+  # EPANET drawing only. Move S8-S15 closer to the main network while
+  # preserving their relative arrangement and every hydraulic property.
+  drawing_sectors: [8, 9, 10, 11, 12, 13, 14, 15]
+  drawing_shift_x: 0.0
+  drawing_shift_y: 70.0
+  # Keeps each generated riser visible beside its sector entry.
+  display_offset_x: -0.75
+  display_offset_y: 0.0
+
+spatial:
+  working_crs: EPSG:32721
+
+field_mapping:
+  nodes:
+    node_id: ID
+    elevation_m: Z
+    demand: DEMANDA
+  pipes:
+    pipe_id: ID
+    from_node: NODE_INI
+    to_node: NODE_FIN
+    length_m: LONGITUD
+    diameter_mm: DIAMETRO
+    roughness: C_HW
+    material: MATERIAL
+
+hydraulics:
+  flow_units: LPS
+  headloss: H-W
+  pipe_defaults:
+    minor_loss: 0.0
+    status: OPEN

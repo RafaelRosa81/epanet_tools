@@ -1,0 +1,15 @@
+name: molino_florida_vertical_alignment
+
+inputs:
+  existing_network:
+    path: data/Molino_Florida_Red_Hidraulica.gpkg
+    node_layer: nodos
+    pipe_layer: tramos
+
+vertical_sector_alignment:
+  moving_reference_node: 15_J043
+  fixed_reference_node: 05_J043
+  sectors: [8, 9, 10, 11, 12, 13, 14, 15]
+  table_path: config/molino_florida_vertical_connections.csv
+  output_path: data/Molino_Florida_Red_Hidraulica_conectada.gpkg
+  report_path: outputs/molino_florida/report/vertical_sector_alignment.csv

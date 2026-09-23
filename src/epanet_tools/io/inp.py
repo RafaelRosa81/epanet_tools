@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 import geopandas as gpd
+import pandas as pd
 from shapely.geometry import LineString
 
 
@@ -89,10 +90,12 @@ def _junctions_section(junctions: gpd.GeoDataFrame) -> list[str]:
         "[JUNCTIONS]",
         ";ID                 Elevation      Demand         Pattern",
     ]
+    demand_field = "base_demand" if "base_demand" in junctions.columns else "demand"
     for _, row in junctions.iterrows():
         node_id = _text(row["node_id"])
-        elevation = _number(row["elevation_m"])
-        lines.append(f" {node_id:<18} {elevation:<14} 0")
+        elevation = _number_or_default(row["elevation_m"], 0.0)
+        demand = _number_or_default(row[demand_field], 0.0) if demand_field in junctions.columns else "0"
+        lines.append(f" {node_id:<18} {elevation:<14} {demand}")
     lines.append("")
     return lines
 
@@ -107,9 +110,9 @@ def _pipes_section(pipes: gpd.GeoDataFrame) -> list[str]:
         from_node = _text(row["from_node"])
         to_node = _text(row["to_node"])
         length = _number(row["length_m"])
-        diameter = _number(row["diameter_mm"])
-        roughness = _number(row["roughness"])
-        minor_loss = _number(row["minor_loss"])
+        diameter = _number_or_default(row["diameter_mm"], 0.0)
+        roughness = _number_or_default(row["roughness"], 0.0)
+        minor_loss = _number_or_default(row["minor_loss"], 0.0)
         status = _text(row["status"])
         lines.append(
             f" {pipe_id:<18} {from_node:<18} {to_node:<18} "
@@ -161,6 +164,13 @@ def _require_fields(data: gpd.GeoDataFrame, fields: tuple[str, ...], layer_name:
 def _number(value: Any) -> str:
     number = float(value)
     return f"{number:.6f}".rstrip("0").rstrip(".")
+
+
+def _number_or_default(value: Any, default: float) -> str:
+    """Format a number, using a safe default for missing values."""
+    if value is None or pd.isna(value):
+        return _number(default)
+    return _number(value)
 
 
 def _text(value: Any) -> str:

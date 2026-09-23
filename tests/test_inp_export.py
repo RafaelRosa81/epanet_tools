@@ -40,3 +40,35 @@ def test_build_basic_inp_text_contains_minimum_sections() -> None:
     assert "P000001" in text
     assert "75" in text
     assert "5" in text
+
+
+def test_build_basic_inp_text_preserves_junction_demand() -> None:
+    junctions = gpd.GeoDataFrame(
+        {
+            "node_id": ["J1"],
+            "elevation_m": [10.0],
+            "demand": [1.25],
+            "geometry": [Point(0.0, 0.0)],
+        },
+        crs="EPSG:32721",
+    )
+    pipes = gpd.GeoDataFrame(
+        {
+            "pipe_id": [],
+            "from_node": [],
+            "to_node": [],
+            "length_m": [],
+            "diameter_mm": [],
+            "roughness": [],
+            "minor_loss": [],
+            "status": [],
+            "geometry": [],
+        },
+        geometry="geometry",
+        crs="EPSG:32721",
+    )
+
+    text = build_basic_inp_text(junctions, pipes)
+
+    assert "J1" in text
+    assert "1.25" in text
