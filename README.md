@@ -199,3 +199,19 @@ topology_report
 - [`docs/roadmap.md`](docs/roadmap.md)
 - [`docs/data_contract.md`](docs/data_contract.md)
 - [`docs/development.md`](docs/development.md)
+
+## Direct EPANET simulation with WNTR
+
+Install the optional simulation dependencies:
+
+```bash
+pip install -e ".[simulation]"
+```
+
+Run any EPANET INP with the native EPANET engine via WNTR and export an Excel workbook:
+
+```bash
+python examples/example_wntr_simulation.py path/to/model.inp --output outputs/model_results.xlsx
+```
+
+The reusable API is `epanet_postprocess.simulation.run_inp(path)`. It returns `nodes`, `links`, and `metadata`, with unrounded numeric values. Pressures and heads are in metres, flow and demand in L/s, and velocities in m/s. Excel shows four decimals without discarding numeric precision. The WNTR adapter has a common top-level contract with the RPT reader, but its columns are explicitly named with units; downstream RPT diagnostics may need adaptation before direct reuse.
