@@ -30,7 +30,7 @@ def run_inp(inp_path: str | Path) -> dict:
 
     def long_frame(variable: str, frame: pd.DataFrame, factor: float = 1.0) -> pd.DataFrame:
         table = frame.rename_axis(index="time_seconds", columns="id")
-        table = table.stack(dropna=False).rename(variable).reset_index()
+        table = table.stack().rename(variable).reset_index()
         table[variable] = table[variable] * factor
         return table
 
